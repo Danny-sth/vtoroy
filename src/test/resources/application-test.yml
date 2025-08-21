@@ -1,0 +1,65 @@
+spring:
+  application:
+    name: jarvis-test
+    
+  # Test database will be configured by TestContainers
+  datasource:
+    url: jdbc:postgresql://localhost:5432/jarvis_test
+    driver-class-name: org.postgresql.Driver
+    username: test
+    password: test
+    
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+    show-sql: false
+    
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    
+  ai:
+    anthropic:
+      api-key: test-key # Mock key for testing
+      chat:
+        options:
+          model: claude-3-5-sonnet-20241022
+          max-tokens: 100 # Smaller for tests
+          temperature: 0.1
+          
+# Test configuration
+jarvis:
+  obsidian:
+    vault-path: /tmp/test-vault
+    watch-enabled: false
+    sync-on-startup: false
+    
+  chat:
+    session-timeout-minutes: 5 # Shorter for tests
+    max-history-size: 5 # Smaller for tests
+    
+  vector-search:
+    max-results: 3 # Smaller for tests
+    min-similarity: 0.5
+    
+server:
+  port: 0 # Random port for tests
+  
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+        
+logging:
+  level:
+    com.jarvis: DEBUG
+    org.springframework.ai: WARN
+    org.flywaydb: WARN
+    org.testcontainers: WARN
+    com.github.dockerjava: WARN

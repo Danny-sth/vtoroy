@@ -1,0 +1,67 @@
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+### Kotlin ###
+.kotlin
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# AI Models (large files)
+src/main/resources/models/*.onnx
+src/main/resources/models/*.bin
+
+# Personal Obsidian vault (uncomment if you don't want to commit your real notes)
+# obsidian-vault/
+# !obsidian-vault/Daily/
+# !obsidian-vault/Projects/
+# !obsidian-vault/Ideas/
+# !obsidian-vault/References/
+
+# Deployment artifacts
+*.tar.gz
+deploy-*.sh
+
+# Test coverage reports (generated files)
+build/reports/
+build/test-results/

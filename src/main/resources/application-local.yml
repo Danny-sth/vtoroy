@@ -1,0 +1,41 @@
+spring:
+  ai:
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY: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}
+      
+  datasource:
+    url: jdbc:postgresql://localhost:5432/jarvis
+    username: jarvis
+    password: jarvis_password
+    driver-class-name: org.postgresql.Driver
+    
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        show_sql: true
+        
+  flyway:
+    enabled: true
+    url: jdbc:postgresql://localhost:5432/jarvis
+    user: jarvis
+    password: jarvis_password
+    baseline-on-migrate: true
+    baseline-version: 0
+
+jarvis:
+  obsidian:
+    vault-path: /home/danny/obsidian-vault
+  chat:
+    max-history-size: 20
+  vector-search:
+    max-results: 5
+
+logging:
+  level:
+    com.jarvis: DEBUG
+    org.springframework.ai: DEBUG
+    org.flywaydb: INFO

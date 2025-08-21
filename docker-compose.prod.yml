@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: jarvis-postgres-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: jarvis
+      POSTGRES_USER: jarvis
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-jarvis_production_password_2025}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "127.0.0.1:5432:5432"  # Bind only to localhost
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+      - ./backups:/backups  # For database backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jarvis"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - jarvis-network
+
+  jarvis-app:
+    build: .
+    container_name: jarvis-app-prod
+    restart: unless-stopped
+    environment:
+      # Database
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/jarvis
+      SPRING_DATASOURCE_USERNAME: jarvis
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-jarvis_production_password_2025}
+      
+      # AI Configuration
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      
+      # App Configuration  
+      OBSIDIAN_VAULT_PATH: /app/obsidian-vault
+      
+      # JVM Options
+      JAVA_OPTS: "-Xmx1g -Xms512m"
+      
+      # Logging
+      LOGGING_LEVEL_ROOT: INFO
+      LOGGING_LEVEL_COM_JARVIS: DEBUG
+      
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./logs:/app/logs  # Application logs
+      - ./obsidian-vault:/app/obsidian-vault:ro  # Read-only vault mount
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - jarvis-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+
+volumes:
+  postgres_data_prod:
+    driver: local
+
+networks:
+  jarvis-network:
+    driver: bridge

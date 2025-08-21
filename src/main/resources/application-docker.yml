@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/jarvis}
+    username: ${SPRING_DATASOURCE_USERNAME:jarvis}
+    password: ${SPRING_DATASOURCE_PASSWORD:jarvis_local_password}
+  
+  jpa:
+    open-in-view: false  # Disable open-in-view for better performance in container
+  
+  ai:
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:mock-api-key}
+      base-url: https://api.anthropic.com
+      # Увеличиваем таймауты для function calling
+      connect-timeout: 60s
+      read-timeout: 300s
+    transformers:
+      model-resource: file:/app/models/all-MiniLM-L6-v2.onnx  # ONNX model path in container
+  
+jarvis:
+  obsidian:
+    vault-path: ${OBSIDIAN_VAULT_PATH:/app/obsidian-vault}

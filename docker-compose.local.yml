@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: jarvis-postgres
+    environment:
+      POSTGRES_DB: jarvis
+      POSTGRES_USER: jarvis
+      POSTGRES_PASSWORD: jarvis_local_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - jarvis_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jarvis -d jarvis"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jarvis-network
+
+  jarvis:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jarvis-app
+    ports:
+      - "8080:8080"
+    environment:
+      # Spring profiles
+      SPRING_PROFILES_ACTIVE: docker
+      
+      # Database configuration
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/jarvis
+      SPRING_DATASOURCE_USERNAME: jarvis
+      SPRING_DATASOURCE_PASSWORD: jarvis_local_password
+      
+      # Anthropic API (replace with your key or leave empty for mock)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-mock-api-key}
+      
+      # Obsidian vault path (inside container)
+      OBSIDIAN_VAULT_PATH: /app/obsidian-vault
+      
+      # JVM options
+      JAVA_OPTS: -Xmx1g -Xms512m
+      
+      # Logging
+      LOGGING_LEVEL_ROOT: INFO
+      LOGGING_LEVEL_COM_JARVIS: DEBUG
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_AI: DEBUG
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB_CLIENT: DEBUG
+      
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # Mount local obsidian vault for live updates
+      - ./obsidian-vault:/app/obsidian-vault:ro
+      # Mount ONNX model
+      - ./src/main/resources/models:/app/models:ro
+    networks:
+      - jarvis-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+networks:
+  jarvis-network:
+    driver: bridge
+
+volumes:
+  jarvis_postgres_data:
+    driver: local
