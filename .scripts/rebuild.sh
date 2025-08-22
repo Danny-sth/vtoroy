@@ -18,11 +18,7 @@ docker-compose -f docker-compose.local.yml down
 
 # Удаление только образа приложения (сохраняем базовые образы)
 echo "🗑️  Removing application image..."
-docker image rm jarvis-jarvis 2>/dev/null || true
-
-# Очистка только dangling build cache (сохраняем слои базовых образов)
-echo "🧹 Cleaning dangling build cache..."
-docker builder prune --filter=dangling=true -f 2>/dev/null || true
+docker image rm scripts-jarvis 2>/dev/null || true
 
 # Пересборка и запуск
 echo "🔨 Building and starting containers..."

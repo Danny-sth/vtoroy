@@ -9,5 +9,6 @@ import org.springframework.boot.runApplication
 class JarvisApplication
 
 fun main(args: Array<String>) {
+	// Test dependency caching optimization
 	runApplication<JarvisApplication>(*args)
 }

@@ -3,13 +3,18 @@ FROM gradle:8.14-jdk21 as builder
 
 WORKDIR /app
 
-# Copy all source files
+# Copy only build files first for dependency caching
 COPY build.gradle.kts settings.gradle.kts gradle.properties ./
 COPY gradle gradle
+
+# Download dependencies (this layer will be cached unless build files change)
+RUN gradle dependencies --no-daemon
+
+# Copy source files (this will only invalidate cache when code changes)
 COPY src src
 COPY obsidian-vault obsidian-vault
 
-# Build application in one step (dependencies will be downloaded during build)
+# Build application
 RUN gradle build -x test --no-daemon
 
 # Runtime stage

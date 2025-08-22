@@ -27,7 +27,7 @@ Jarvis is a personal AI assistant built with Spring Boot 3.5.4 + Kotlin 1.9.25, 
 ### Development Server
 ```bash
 # Start PostgreSQL database
-docker-compose -f docker-compose.local.yml up -d postgres
+docker-compose -f .scripts/docker-compose.local.yml up -d postgres
 
 # Run application locally
 ./gradlew bootRun --args='--spring.profiles.active=local'
@@ -39,8 +39,8 @@ OBSIDIAN_VAULT_PATH="/path/to/vault" ./gradlew bootRun --args='--spring.profiles
 ### Database Operations
 ```bash
 # Reset database (removes all data)
-docker-compose -f docker-compose.local.yml down postgres -v
-docker-compose -f docker-compose.local.yml up -d postgres
+docker-compose -f .scripts/docker-compose.local.yml down postgres -v
+docker-compose -f .scripts/docker-compose.local.yml up -d postgres
 
 # View Flyway migration status
 ./gradlew flywayInfo
@@ -60,8 +60,8 @@ docker build -t jarvis:latest .
 # Deploy to server
 ./.scripts/deploy.sh [server-ip]  # Defaults to configured server
 
-# Production compose
-docker-compose -f docker-compose.prod.yml up -d
+# Production compose (from .scripts/)
+docker-compose -f .scripts/docker-compose.prod.yml up -d
 
 # Stop all services
 ./.scripts/stop.sh

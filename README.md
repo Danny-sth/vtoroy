@@ -219,7 +219,9 @@ jarvis/
 │   ├── rebuild.sh                  # Docker rebuild script
 │   ├── clean-rebuild.sh           # Clean rebuild script
 │   ├── deploy.sh                  # Production deployment
-│   └── stop.sh                    # Stop services script
+│   ├── stop.sh                    # Stop services script
+│   ├── docker-compose.local.yml   # Local development compose
+│   └── docker-compose.prod.yml    # Production compose
 ├── docs/                          # 📚 Documentation
 │   ├── ARCHITECTURE.md            # Detailed architecture documentation
 │   ├── DEPLOYMENT.md              # Deployment guide
