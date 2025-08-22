@@ -15,6 +15,12 @@ interface KnowledgeFileRepository : JpaRepository<KnowledgeFile, Long> {
     
     fun existsByFilePath(filePath: String): Boolean
     
+    fun findBySourceAndSourceId(source: String, sourceId: String): KnowledgeFile?
+    
+    fun findBySource(source: String): List<KnowledgeFile>
+    
+    fun countBySource(source: String): Long
+    
     @Query(
         value = """
             SELECT k.*, k.embedding <=> CAST(?1 AS vector) as distance
@@ -27,6 +33,23 @@ interface KnowledgeFileRepository : JpaRepository<KnowledgeFile, Long> {
     )
     fun findSimilarDocuments(
         @Param("queryVector") queryVector: String,
+        @Param("limit") limit: Int
+    ): List<KnowledgeFile>
+    
+    @Query(
+        value = """
+            SELECT k.*, k.embedding <=> CAST(?1 AS vector) as distance
+            FROM knowledge_files k
+            WHERE k.embedding IS NOT NULL
+            AND k.source = ?2
+            ORDER BY k.embedding <=> CAST(?1 AS vector)
+            LIMIT ?3
+        """,
+        nativeQuery = true
+    )
+    fun findSimilarDocumentsBySource(
+        @Param("queryVector") queryVector: String,
+        @Param("source") source: String,
         @Param("limit") limit: Int
     ): List<KnowledgeFile>
     

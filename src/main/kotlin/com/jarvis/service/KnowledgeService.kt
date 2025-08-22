@@ -1,149 +1,128 @@
 package com.jarvis.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
+import com.jarvis.agent.contract.KnowledgeManageable
+import com.jarvis.agent.contract.SourceStatus
+import com.jarvis.service.knowledge.contract.KnowledgeItem
+import com.jarvis.repository.KnowledgeFileRepository
 import com.jarvis.dto.KnowledgeStatus
 import com.jarvis.dto.KnowledgeStatusResponse
 import com.jarvis.entity.KnowledgeFile
-import com.jarvis.repository.KnowledgeFileRepository
 import com.pgvector.PGvector
-import com.vladsch.flexmark.parser.Parser
-import com.vladsch.flexmark.util.data.MutableDataSet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.beans.factory.annotation.Qualifier
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.io.File
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.io.path.extension
-import kotlin.io.path.isRegularFile
-import kotlin.io.path.pathString
 
+/**
+ * Service for managing knowledge through specialized agents
+ * Each agent manages its own knowledge source and forms memories
+ */
 @Service
 class KnowledgeService(
     private val knowledgeFileRepository: KnowledgeFileRepository,
     @Qualifier("customEmbeddingModel") private val embeddingModel: EmbeddingModel,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val knowledgeAgents: List<KnowledgeManageable> // Auto-wired list of all knowledge agents
 ) {
     private val logger = KotlinLogging.logger {}
     
-    // Кеш для query embeddings - избегаем пересчета одинаковых запросов
+    // Cache for query embeddings - avoids recalculating identical queries
     private val queryEmbeddingCache = ConcurrentHashMap<String, FloatArray>()
-    private val yamlMapper = ObjectMapper(YAMLFactory())
-    private val markdownParser: Parser
     
-    @Value("\${jarvis.obsidian.vault-path}")
-    private lateinit var defaultVaultPath: String
-    
-    init {
-        val options = MutableDataSet()
-        markdownParser = Parser.builder(options).build()
+    /**
+     * Get all available knowledge agents and their status
+     */
+    fun getAvailableSources(): Map<String, SourceStatus> {
+        return knowledgeAgents.associate { agent ->
+            // Use agent class name as ID for now
+            val agentId = agent::class.simpleName?.removeSuffix("Agent")?.lowercase() ?: "unknown"
+            agentId to agent.getSourceStatus()
+        }
     }
     
+    /**
+     * Sync knowledge through a specific agent
+     * @param sourceId The ID of the agent/source to sync
+     * @param config Agent-specific configuration
+     * @return Number of items synced
+     */
     @Transactional
-    suspend fun syncObsidianVault(vaultPath: String? = null): Int = withContext(Dispatchers.IO) {
-        val path = Paths.get(vaultPath ?: defaultVaultPath)
+    suspend fun syncSource(sourceId: String, config: Map<String, Any> = emptyMap()): Int = withContext(Dispatchers.IO) {
+        val agent = knowledgeAgents.find { 
+            val agentId = it::class.simpleName?.removeSuffix("Agent")?.lowercase() ?: "unknown"
+            agentId == sourceId
+        } ?: throw IllegalArgumentException("Unknown knowledge agent: $sourceId")
         
-        if (!Files.exists(path)) {
-            throw IllegalArgumentException("Vault path does not exist: $path")
+        logger.info { "Requesting agent ${agent::class.simpleName} to form memories" }
+        
+        if (!agent.canAccessSource()) {
+            throw IllegalStateException("Agent ${agent::class.simpleName} cannot access its source")
         }
         
+        val memories = agent.formMemories(config)
         var processedCount = 0
         
-        Files.walk(path)
-            .filter { it.isRegularFile() && it.extension == "md" }
-            .forEach { filePath ->
-                try {
-                    processMarkdownFile(filePath)
-                    processedCount++
-                } catch (e: Exception) {
-                    logger.error(e) { "Error processing file: $filePath" }
-                }
+        memories.forEach { memory ->
+            try {
+                processKnowledgeItem(sourceId, memory)
+                processedCount++
+            } catch (e: Exception) {
+                logger.error(e) { "Error processing memory ${memory.id} from agent ${agent::class.simpleName}" }
             }
+        }
         
-        logger.info { "Synced $processedCount files from Obsidian vault" }
+        logger.info { "Processed $processedCount memories from agent ${agent::class.simpleName}" }
         processedCount
     }
     
-    private fun processMarkdownFile(filePath: Path) {
-        val content = Files.readString(filePath)
-        val hash = calculateHash(content)
-        val relativePath = filePath.pathString
+    /**
+     * Sync Obsidian vault (backward compatibility)
+     */
+    
+    private fun processKnowledgeItem(sourceId: String, item: KnowledgeItem) {
+        val hash = calculateHash(item.content)
         
-        // Check if file already exists and hasn't changed
-        val existing = knowledgeFileRepository.findByFilePath(relativePath)
-        if (existing.isPresent && existing.get().fileHash == hash) {
-            logger.debug { "File unchanged, skipping: $relativePath" }
+        // Check if item already exists and hasn't changed
+        val existing = knowledgeFileRepository.findBySourceAndSourceId(sourceId, item.id)
+        if (existing != null && existing.fileHash == hash) {
+            logger.debug { "Item unchanged, skipping: ${item.id}" }
             return
         }
         
-        // Extract frontmatter and content
-        val (frontmatter, markdownContent) = extractFrontmatter(content)
-        
-        // Clean markdown content
-        val cleanedContent = cleanMarkdown(markdownContent)
-        
         // Generate embedding
-        val embedding = generateEmbedding(cleanedContent)
+        val embedding = generateEmbedding(item.content)
+        
+        // Prepare metadata with tags
+        val metadata = item.metadata?.toMutableMap() ?: mutableMapOf()
+        if (item.tags.isNotEmpty()) {
+            metadata["tags"] = item.tags
+        }
         
         // Create or update knowledge file
-        val knowledgeFile = existing.orElse(null)?.copy(
-            content = cleanedContent,
+        val knowledgeFile = existing?.copy(
+            content = item.content,
             embedding = PGvector(embedding),
-            metadata = frontmatter?.let { objectMapper.valueToTree(it) },
-            fileHash = hash
+            metadata = objectMapper.valueToTree(metadata),
+            fileHash = hash,
+            updatedAt = java.time.LocalDateTime.now()
         ) ?: KnowledgeFile(
-            filePath = relativePath,
-            content = cleanedContent,
+            source = sourceId,
+            sourceId = item.id,
+            filePath = item.title, // Use title as file path for display
+            content = item.content,
             embedding = PGvector(embedding),
-            metadata = frontmatter?.let { objectMapper.valueToTree(it) },
+            metadata = objectMapper.valueToTree(metadata),
             fileHash = hash
         )
         
         knowledgeFileRepository.save(knowledgeFile)
-        logger.debug { "Processed file: $relativePath" }
-    }
-    
-    private fun extractFrontmatter(content: String): Pair<Map<String, Any>?, String> {
-        if (!content.startsWith("---")) {
-            return null to content
-        }
-        
-        val lines = content.lines()
-        val endIndex = lines.drop(1).indexOfFirst { it == "---" }
-        
-        if (endIndex == -1) {
-            return null to content
-        }
-        
-        val frontmatterContent = lines.subList(1, endIndex + 1).joinToString("\n")
-        val markdownContent = lines.drop(endIndex + 2).joinToString("\n")
-        
-        return try {
-            val frontmatter = yamlMapper.readValue(frontmatterContent, Map::class.java) as Map<String, Any>
-            frontmatter to markdownContent
-        } catch (e: Exception) {
-            logger.warn { "Failed to parse frontmatter: ${e.message}" }
-            null to content
-        }
-    }
-    
-    private fun cleanMarkdown(content: String): String {
-        // Remove Obsidian-specific syntax while keeping content readable
-        return content
-            .replace(Regex("\\[\\[([^\\]]+)\\]\\]")) { match ->
-                match.groupValues[1].split("|").last()
-            }
-            .replace(Regex("!\\[\\[([^\\]]+)\\]\\]"), "[$1]")
-            .trim()
+        logger.debug { "Processed item: ${item.id} from source: $sourceId" }
     }
     
     private fun generateEmbedding(text: String, useCache: Boolean = false): FloatArray {
@@ -151,7 +130,7 @@ class KnowledgeService(
             return FloatArray(384) { 0f }
         }
         
-        // Используем кеш только для query (не для документов)
+        // Use cache only for queries (not for documents)
         if (useCache) {
             return queryEmbeddingCache.getOrPut(text) {
                 logger.debug { "Generating cached embedding for query: '${text.take(50)}...'" }
@@ -172,6 +151,9 @@ class KnowledgeService(
         return hash.joinToString("") { "%02x".format(it) }
     }
     
+    /**
+     * Get overall knowledge base status
+     */
     fun getStatus(): KnowledgeStatusResponse {
         val totalFiles = knowledgeFileRepository.count()
         val indexedFiles = knowledgeFileRepository.findAll()
@@ -194,17 +176,57 @@ class KnowledgeService(
         )
     }
     
-    suspend fun searchKnowledge(query: String, limit: Int = 5): List<KnowledgeFile> = withContext(Dispatchers.IO) {
-        logger.debug { "Starting knowledge search for: '$query'" }
+    /**
+     * Get status for a specific agent
+     */
+    fun getSourceStatus(sourceId: String): Map<String, Any> {
+        val agent = knowledgeAgents.find { 
+            val agentId = it::class.simpleName?.removeSuffix("Agent")?.lowercase() ?: "unknown"
+            agentId == sourceId
+        } ?: throw IllegalArgumentException("Unknown knowledge agent: $sourceId")
+        
+        val itemCount = knowledgeFileRepository.countBySource(sourceId)
+        val lastItem = knowledgeFileRepository.findBySource(sourceId)
+            .maxByOrNull { it.updatedAt }
+        
+        return mapOf<String, Any>(
+            "sourceId" to sourceId,
+            "agentName" to (agent::class.simpleName ?: "Unknown"),
+            "status" to agent.getSourceStatus(),
+            "itemCount" to itemCount,
+            "lastSync" to (lastItem?.updatedAt?.toString() ?: "Never")
+        )
+    }
+    
+    /**
+     * Search knowledge across all sources or specific source
+     */
+    suspend fun searchKnowledge(
+        query: String, 
+        limit: Int = 5,
+        sourceFilter: String? = null
+    ): List<KnowledgeFile> = withContext(Dispatchers.IO) {
+        logger.debug { "Starting knowledge search for: '$query' (source: ${sourceFilter ?: "all"})" }
         val startTime = System.currentTimeMillis()
         
-        val queryEmbedding = generateEmbedding(query, useCache = true) // Включаем кеш для запросов
+        val queryEmbedding = generateEmbedding(query, useCache = true)
         val queryVector = PGvector(queryEmbedding)
         
-        val results = knowledgeFileRepository.findSimilarDocuments(queryVector.toString(), limit)
+        val results = if (sourceFilter != null) {
+            knowledgeFileRepository.findSimilarDocumentsBySource(
+                queryVector.toString(), 
+                sourceFilter, 
+                limit
+            )
+        } else {
+            knowledgeFileRepository.findSimilarDocuments(queryVector.toString(), limit)
+        }
         
         val duration = System.currentTimeMillis() - startTime
-        logger.info { "Knowledge search completed in ${duration}ms, found ${results.size} results" }
+        logger.info { 
+            "Knowledge search completed in ${duration}ms, found ${results.size} results" +
+            if (sourceFilter != null) " from source: $sourceFilter" else ""
+        }
         
         results
     }

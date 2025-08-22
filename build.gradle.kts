@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.jarvis"
-version = "0.0.1-SNAPSHOT"
+version = "0.4.0"
 description = "Personal AI Assistant with Autonomous Decision Making"
 
 java {
@@ -117,4 +117,9 @@ tasks.jacocoTestCoverageVerification {
 			}
 		}
 	}
+}
+
+// Generate build-info  
+springBoot {
+	buildInfo()
 }

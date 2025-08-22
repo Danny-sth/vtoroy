@@ -4,10 +4,13 @@ FROM gradle:8.14-jdk21 as builder
 WORKDIR /app
 
 # Copy all source files
-COPY . .
+COPY build.gradle.kts settings.gradle.kts gradle.properties ./
+COPY gradle gradle
+COPY src src
+COPY obsidian-vault obsidian-vault
 
-# Build application (gradle image already has gradle)
-RUN gradle clean build -x test --no-daemon
+# Build application in one step (dependencies will be downloaded during build)
+RUN gradle build -x test --no-daemon
 
 # Runtime stage
 FROM eclipse-temurin:21-jre

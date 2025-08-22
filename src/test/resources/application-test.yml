@@ -35,7 +35,7 @@ spring:
 # Test configuration
 jarvis:
   obsidian:
-    vault-path: /tmp/test-vault
+    vault-path: ${java.io.tmpdir}/jarvis-test-vault
     watch-enabled: false
     sync-on-startup: false
     

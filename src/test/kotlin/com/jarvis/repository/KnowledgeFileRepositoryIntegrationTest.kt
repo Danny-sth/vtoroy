@@ -21,6 +21,8 @@ import kotlin.test.assertFails
 @SpringBootTest
 @Testcontainers
 @Transactional
+@org.springframework.test.context.ActiveProfiles("test")
+@org.springframework.context.annotation.Import(com.jarvis.config.TestConfiguration::class)
 class PgVectorSqlTest {
 
     companion object {
@@ -33,7 +35,7 @@ class PgVectorSqlTest {
             .withDatabaseName("testdb")
             .withUsername("test")
             .withPassword("test")
-            .withInitScript("init-pgvector.sql")
+            .withCommand("postgres", "-c", "shared_preload_libraries=vector")
 
         @DynamicPropertySource
         @JvmStatic
@@ -65,6 +67,8 @@ class PgVectorSqlTest {
         
         // Save test documents
         val doc1 = KnowledgeFile(
+            source = "obsidian",
+            sourceId = "similar-doc",
             filePath = "similar-doc.md",
             content = "Similar document content",
             embedding = PGvector(similarEmbedding),
@@ -72,6 +76,8 @@ class PgVectorSqlTest {
         )
         
         val doc2 = KnowledgeFile(
+            source = "obsidian",
+            sourceId = "different-doc",
             filePath = "different-doc.md",
             content = "Different document content", 
             embedding = PGvector(differentEmbedding),
@@ -116,6 +122,8 @@ class PgVectorSqlTest {
         val farEmbedding = FloatArray(384) { -0.5f }   // Large difference
         
         val closeDoc = KnowledgeFile(
+            source = "obsidian",
+            sourceId = "close-doc",
             filePath = "close-doc.md",
             content = "Close document",
             embedding = PGvector(closeEmbedding),
@@ -123,6 +131,8 @@ class PgVectorSqlTest {
         )
         
         val farDoc = KnowledgeFile(
+            source = "obsidian",
+            sourceId = "far-doc",
             filePath = "far-doc.md", 
             content = "Far document",
             embedding = PGvector(farEmbedding),

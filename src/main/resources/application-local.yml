@@ -6,7 +6,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/jarvis
     username: jarvis
-    password: jarvis_password
+    password: jarvis_local_password
     driver-class-name: org.postgresql.Driver
     
   jpa:
@@ -22,7 +22,7 @@ spring:
     enabled: true
     url: jdbc:postgresql://localhost:5432/jarvis
     user: jarvis
-    password: jarvis_password
+    password: jarvis_local_password
     baseline-on-migrate: true
     baseline-version: 0
 

@@ -19,58 +19,156 @@
                     <h1 class="logo-title">Jarvis</h1>
                     <span class="version">v0.3.0</span>
                 </div>
-                <div class="status-indicator">
-                    <div class="status-dot" id="status-dot"></div>
-                    <span class="status-text" id="status-text">Подключение...</span>
+                <div class="header-controls">
+                    <nav class="tabs">
+                        <button class="tab active" data-tab="chat">
+                            <span class="tab-icon">💬</span>
+                            <span>Чат</span>
+                        </button>
+                        <button class="tab" data-tab="knowledge">
+                            <span class="tab-icon">📚</span>
+                            <span>Знания</span>
+                        </button>
+                        <button class="tab" data-tab="logs">
+                            <span class="tab-icon">📋</span>
+                            <span>Логи</span>
+                        </button>
+                    </nav>
+                    <div class="status-indicator">
+                        <div class="status-dot" id="status-dot"></div>
+                        <span class="status-text" id="status-text">Подключение...</span>
+                    </div>
                 </div>
             </div>
         </header>
 
-        <!-- Main Chat Interface -->
-        <main class="main">
-            <!-- Messages Container -->
-            <div class="messages-container" id="messages-container">
-                <div class="welcome-message">
-                    <div class="welcome-icon">👋</div>
-                    <h2>Добро пожаловать в Jarvis!</h2>
-                    <p>Ваш персональный AI-ассистент с автономным принятием решений.</p>
-                    <div class="features">
-                        <div class="feature">
-                            <span class="feature-icon">🧠</span>
-                            <span>Spring AI Routing Workflow</span>
-                        </div>
-                        <div class="feature">
-                            <span class="feature-icon">⚡</span>
-                            <span>777x ускорение с кешированием</span>
-                        </div>
-                        <div class="feature">
-                            <span class="feature-icon">📚</span>
-                            <span>Интеграция с Obsidian</span>
+        <!-- Tab Content -->
+        <div class="tab-content">
+            <!-- Chat Tab -->
+            <div class="tab-panel" id="chat-panel">
+                <main class="main">
+                    <!-- Messages Container -->
+                    <div class="messages-container" id="messages-container">
+                        <div class="welcome-message">
+                            <div class="welcome-icon">👋</div>
+                            <h2>Добро пожаловать в Jarvis!</h2>
+                            <p>Ваш персональный AI-ассистент с автономным принятием решений.</p>
+                            <div class="features">
+                                <div class="feature">
+                                    <span class="feature-icon">💬</span>
+                                    <span>Умная беседа с памятью</span>
+                                </div>
+                                <div class="feature">
+                                    <span class="feature-icon">📚</span>
+                                    <span>Поиск в базе знаний</span>
+                                </div>
+                                <div class="feature">
+                                    <span class="feature-icon">🎯</span>
+                                    <span>Автономные решения</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
+
+                    <!-- Input Area -->
+                    <div class="input-area">
+                        <div class="input-container">
+                            <textarea 
+                                id="message-input" 
+                                placeholder="Задайте вопрос Джарвису..."
+                                rows="1"
+                            ></textarea>
+                            <button id="send-button" class="send-button" disabled>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                                    <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="input-info">
+                            <span class="session-id">Сессия: <code id="current-session">generating...</code></span>
+                            <span class="typing-hint">⌃↩ для отправки</span>
+                        </div>
+                    </div>
+                </main>
             </div>
 
-            <!-- Input Area -->
-            <div class="input-area">
-                <div class="input-container">
-                    <textarea 
-                        id="message-input" 
-                        placeholder="Задайте вопрос Джарвису..."
-                        rows="1"
-                    ></textarea>
-                    <button id="send-button" class="send-button" disabled>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                            <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </button>
-                </div>
-                <div class="input-info">
-                    <span class="session-id">Сессия: <code id="current-session">generating...</code></span>
-                    <span class="typing-hint">⌃↩ для отправки</span>
-                </div>
+            <!-- Knowledge Tab -->
+            <div class="tab-panel" id="knowledge-panel-content">
+                <main class="main">
+                    <div class="panel-content-full">
+                        <div class="panel-header-large">
+                            <h2>📚 База знаний</h2>
+                            <p>Управление интеграцией с Obsidian и состояние векторной базы данных</p>
+                        </div>
+                        
+                        <div class="knowledge-stats-grid" id="knowledge-stats-large">
+                            <div class="stat-card">
+                                <div class="stat-icon">📄</div>
+                                <div class="stat-content">
+                                    <div class="stat-value" id="documents-count-large">-</div>
+                                    <div class="stat-label">Документы</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">🔄</div>
+                                <div class="stat-content">
+                                    <div class="stat-value" id="last-sync-large">-</div>
+                                    <div class="stat-label">Последняя синхронизация</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">🧮</div>
+                                <div class="stat-content">
+                                    <div class="stat-value" id="vectors-count">-</div>
+                                    <div class="stat-label">Векторы</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="action-buttons">
+                            <button class="action-button primary" id="sync-button-large">
+                                <span class="button-icon">🔄</span>
+                                <span>Синхронизировать Obsidian</span>
+                            </button>
+                        </div>
+                    </div>
+                </main>
             </div>
-        </main>
+
+            <!-- Logs Tab -->
+            <div class="tab-panel" id="logs-panel">
+                <main class="main">
+                    <div class="panel-content-full">
+                        <div class="panel-header-large">
+                            <h2>📋 Системные логи</h2>
+                            <p>Мониторинг активности приложения в реальном времени</p>
+                            <div class="logs-controls">
+                                <button class="control-button" id="logs-pause">
+                                    <span class="button-icon">⏸️</span>
+                                    <span>Пауза</span>
+                                </button>
+                                <button class="control-button" id="logs-clear">
+                                    <span class="button-icon">🗑️</span>
+                                    <span>Очистить</span>
+                                </button>
+                                <button class="control-button" id="logs-download">
+                                    <span class="button-icon">💾</span>
+                                    <span>Скачать</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="logs-container" id="logs-container">
+                            <div class="log-entry connecting">
+                                <span class="log-timestamp">Подключение...</span>
+                                <span class="log-level info">INFO</span>
+                                <span class="log-message">Инициализация просмотра логов</span>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
 
         <!-- Loading Overlay -->
         <div class="loading-overlay" id="loading-overlay">

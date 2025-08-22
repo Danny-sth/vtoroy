@@ -1,5 +1,6 @@
 package com.jarvis.config
 
+import com.jarvis.agent.ObsidianAgent
 import com.jarvis.service.JarvisService
 import io.mockk.mockk
 import io.mockk.coEvery
@@ -13,6 +14,8 @@ import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
 import org.springframework.context.annotation.Profile
+import java.nio.file.Files
+import kotlin.io.path.createTempDirectory
 
 @TestConfiguration
 @Profile("test")
@@ -36,4 +39,5 @@ class TestConfiguration {
         
         return mockChatModel
     }
+    
 }

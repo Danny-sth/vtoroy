@@ -6,21 +6,14 @@ import com.jarvis.entity.ChatSession
 import com.jarvis.entity.MessageRole
 import com.jarvis.repository.ChatMessageRepository
 import com.jarvis.repository.ChatSessionRepository
+import com.jarvis.agent.contract.AgentResponse
 import io.mockk.*
-import io.mockk.impl.annotations.InjectMockKs
-import io.mockk.impl.annotations.MockK
-import io.mockk.impl.annotations.RelaxedMockK
-import io.mockk.junit5.MockKExtension
 import kotlinx.coroutines.test.runTest
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
-import org.springframework.ai.anthropic.AnthropicChatModel
-import org.springframework.ai.chat.messages.AssistantMessage
-import org.springframework.ai.chat.messages.UserMessage
-import org.springframework.ai.chat.model.ChatResponse
-import org.springframework.ai.chat.model.Generation
+import io.mockk.junit5.MockKExtension
 import org.springframework.data.domain.PageRequest
 import java.time.LocalDateTime
 import java.util.Optional
@@ -28,22 +21,18 @@ import java.util.Optional
 @ExtendWith(MockKExtension::class)
 class JarvisServiceTest {
 
-    @RelaxedMockK
-    private lateinit var chatModel: AnthropicChatModel
+    @io.mockk.impl.annotations.RelaxedMockK
+    private lateinit var mainAgent: com.jarvis.agent.MainAgent
 
-    @MockK
-    private lateinit var knowledgeService: KnowledgeService
-
-    @MockK
+    @io.mockk.impl.annotations.MockK
     private lateinit var chatSessionRepository: ChatSessionRepository
 
-    @MockK
+    @io.mockk.impl.annotations.MockK
     private lateinit var chatMessageRepository: ChatMessageRepository
 
-    @RelaxedMockK
+    @io.mockk.impl.annotations.RelaxedMockK
     private lateinit var objectMapper: ObjectMapper
 
-    @InjectMockKs
     private lateinit var jarvisService: JarvisService
 
     private val testSessionId = "test-session-123"
@@ -53,6 +42,14 @@ class JarvisServiceTest {
     @BeforeEach
     fun setup() {
         clearAllMocks()
+        
+        // Create service manually with mocked dependencies
+        jarvisService = JarvisService(
+            mainAgent = mainAgent,
+            chatSessionRepository = chatSessionRepository,
+            chatMessageRepository = chatMessageRepository,
+            objectMapper = objectMapper
+        )
     }
 
     // Test: Create new session when it doesn't exist
@@ -65,15 +62,15 @@ class JarvisServiceTest {
         every { chatSessionRepository.save(any()) } returns newSession
         every { chatMessageRepository.save(any()) } answers { firstArg() }
         every { 
-            chatMessageRepository.findBySessionIdOrderByCreatedAtDesc(any(), any()) 
+            chatMessageRepository.findBySessionIdOrderByCreatedAtDesc(any()) 
         } returns emptyList()
         
-        val generation = mockk<Generation>(relaxed = true)
-        every { generation.output.content } returns testResponse
-        
-        val aiResponse = mockk<ChatResponse>(relaxed = true)
-        every { aiResponse.result } returns generation
-        every { chatModel.call(any<org.springframework.ai.chat.prompt.Prompt>()) } returns aiResponse
+        val agentResponse = AgentResponse(
+            content = testResponse,
+            metadata = emptyMap(),
+            confidence = 0.8
+        )
+        coEvery { mainAgent.handle(any(), any()) } returns agentResponse
 
         // When
         val response = jarvisService.chat(testQuery, testSessionId)
@@ -100,15 +97,15 @@ class JarvisServiceTest {
         every { chatSessionRepository.save(any()) } returns existingSession
         every { chatMessageRepository.save(any()) } answers { firstArg() }
         every { 
-            chatMessageRepository.findBySessionIdOrderByCreatedAtDesc(any(), any()) 
+            chatMessageRepository.findBySessionIdOrderByCreatedAtDesc(any()) 
         } returns emptyList()
         
-        val generation = mockk<Generation>(relaxed = true)
-        every { generation.output.content } returns testResponse
-        
-        val aiResponse = mockk<ChatResponse>(relaxed = true)
-        every { aiResponse.result } returns generation
-        every { chatModel.call(any<org.springframework.ai.chat.prompt.Prompt>()) } returns aiResponse
+        val agentResponse = AgentResponse(
+            content = testResponse,
+            metadata = emptyMap(),
+            confidence = 0.8
+        )
+        coEvery { mainAgent.handle(any(), any()) } returns agentResponse
 
         // When
         val response = jarvisService.chat(testQuery, testSessionId)
@@ -145,32 +142,28 @@ class JarvisServiceTest {
         every { chatSessionRepository.save(any()) } returns session
         every { chatMessageRepository.save(any()) } answers { firstArg() }
         every { 
-            chatMessageRepository.findBySessionIdOrderByCreatedAtDesc(
-                testSessionId, 
-                PageRequest.of(0, 20)
-            ) 
+            chatMessageRepository.findBySessionIdOrderByCreatedAtDesc(testSessionId) 
         } returns previousMessages.reversed()
         
-        val generation = mockk<Generation>(relaxed = true)
-        every { generation.output.content } returns testResponse
+        val agentResponse = AgentResponse(
+            content = testResponse,
+            metadata = emptyMap(),
+            confidence = 0.8
+        )
         
-        val aiResponse = mockk<ChatResponse>(relaxed = true)
-        every { aiResponse.result } returns generation
-        
-        // Capture the prompt to verify history is included
-        val promptSlot = slot<org.springframework.ai.chat.prompt.Prompt>()
-        every { chatModel.call(capture(promptSlot)) } returns aiResponse
+        // Capture the history passed to mainAgent
+        val historySlot = slot<List<ChatMessage>>()
+        coEvery { mainAgent.handle(any(), capture(historySlot)) } returns agentResponse
 
         // When
         jarvisService.chat(testQuery, testSessionId)
 
-        // Then
-        val capturedMessages = promptSlot.captured.instructions
-        assertThat(capturedMessages).hasSize(4) // System + 2 history + current query
-        assertThat(capturedMessages[1]).isInstanceOf(UserMessage::class.java)
-        assertThat((capturedMessages[1] as UserMessage).content).isEqualTo("Previous question")
-        assertThat(capturedMessages[2]).isInstanceOf(AssistantMessage::class.java)
-        assertThat((capturedMessages[2] as AssistantMessage).content).isEqualTo("Previous answer")
+        // Then - verify that history is passed to MainAgent
+        assertThat(historySlot.captured).hasSize(2)
+        assertThat(historySlot.captured[0].content).isEqualTo("Previous question")
+        assertThat(historySlot.captured[0].role).isEqualTo(MessageRole.USER)
+        assertThat(historySlot.captured[1].content).isEqualTo("Previous answer") 
+        assertThat(historySlot.captured[1].role).isEqualTo(MessageRole.ASSISTANT)
     }
 
     // Test: Save user and assistant messages
@@ -183,15 +176,15 @@ class JarvisServiceTest {
         every { chatSessionRepository.save(any()) } returns session
         every { chatMessageRepository.save(any()) } answers { firstArg() }
         every { 
-            chatMessageRepository.findBySessionIdOrderByCreatedAtDesc(any(), any()) 
+            chatMessageRepository.findBySessionIdOrderByCreatedAtDesc(any()) 
         } returns emptyList()
         
-        val generation = mockk<Generation>(relaxed = true)
-        every { generation.output.content } returns testResponse
-        
-        val aiResponse = mockk<ChatResponse>(relaxed = true)
-        every { aiResponse.result } returns generation
-        every { chatModel.call(any<org.springframework.ai.chat.prompt.Prompt>()) } returns aiResponse
+        val agentResponse = AgentResponse(
+            content = testResponse,
+            metadata = emptyMap(),
+            confidence = 0.8
+        )
+        coEvery { mainAgent.handle(any(), any()) } returns agentResponse
 
         // When
         jarvisService.chat(testQuery, testSessionId)
@@ -212,9 +205,9 @@ class JarvisServiceTest {
 
     // Test: Search knowledge function
 
-    // Test: Extract metadata from AI response
+    // Test: Extract metadata from agent response
     @Test
-    fun `chat should extract usage metadata from response`() = runTest {
+    fun `chat should extract metadata from agent response`() = runTest {
         // Given
         val session = ChatSession(id = testSessionId)
         
@@ -222,35 +215,30 @@ class JarvisServiceTest {
         every { chatSessionRepository.save(any()) } returns session
         every { chatMessageRepository.save(any()) } answers { firstArg() }
         every { 
-            chatMessageRepository.findBySessionIdOrderByCreatedAtDesc(any(), any()) 
+            chatMessageRepository.findBySessionIdOrderByCreatedAtDesc(any()) 
         } returns emptyList()
         
-        val generation = mockk<Generation>(relaxed = true)
-        every { generation.output.content } returns testResponse
-        
-        val usage = mockk<org.springframework.ai.chat.metadata.Usage>(relaxed = true)
-        every { usage.promptTokens } returns 100L
-        every { usage.generationTokens } returns 50L
-        every { usage.totalTokens } returns 150L
-        
-        val metadata = mockk<org.springframework.ai.chat.metadata.ChatResponseMetadata>(relaxed = true)
-        every { metadata.usage } returns usage
-        
-        val aiResponse = mockk<ChatResponse>(relaxed = true)
-        every { aiResponse.result } returns generation
-        every { aiResponse.metadata } returns metadata
-        every { chatModel.call(any<org.springframework.ai.chat.prompt.Prompt>()) } returns aiResponse
+        val agentResponse = AgentResponse(
+            content = testResponse,
+            metadata = mapOf(
+                "approach" to "dialogue",
+                "agent" to "MainAgent",
+                "confidence" to 0.8
+            ),
+            confidence = 0.8,
+            processingTimeMs = 150L
+        )
+        coEvery { mainAgent.handle(any(), any()) } returns agentResponse
 
         // When
         val response = jarvisService.chat(testQuery, testSessionId)
 
         // Then
-        assertThat(response.metadata).containsKey("usage")
-        @Suppress("UNCHECKED_CAST")
-        val usageMap = response.metadata?.get("usage") as Map<String, Any>
-        assertThat(usageMap["promptTokens"]).isEqualTo(100L)
-        assertThat(usageMap["generationTokens"]).isEqualTo(50L)
-        assertThat(usageMap["totalTokens"]).isEqualTo(150L)
+        assertThat(response.metadata).containsKey("approach")
+        assertThat(response.metadata?.get("approach")).isEqualTo("dialogue")
+        assertThat(response.metadata?.get("agent")).isEqualTo("MainAgent")
+        assertThat(response.metadata?.get("confidence")).isEqualTo(0.8)
+        // processingTimeMs не передается через metadata в AgentResponse, это отдельное поле
     }
 
     // Test: Limit conversation history size
@@ -271,28 +259,22 @@ class JarvisServiceTest {
         every { chatSessionRepository.save(any()) } returns session
         every { chatMessageRepository.save(any()) } answers { firstArg() }
         every { 
-            chatMessageRepository.findBySessionIdOrderByCreatedAtDesc(
-                testSessionId,
-                PageRequest.of(0, 20) // maxHistorySize = 20
-            ) 
+            chatMessageRepository.findBySessionIdOrderByCreatedAtDesc(testSessionId)
         } returns manyMessages.takeLast(20).reversed()
         
-        val generation = mockk<Generation>(relaxed = true)
-        every { generation.output.content } returns testResponse
-        
-        val aiResponse = mockk<ChatResponse>(relaxed = true)
-        every { aiResponse.result } returns generation
-        every { chatModel.call(any<org.springframework.ai.chat.prompt.Prompt>()) } returns aiResponse
+        val agentResponse = AgentResponse(
+            content = testResponse,
+            metadata = emptyMap(),
+            confidence = 0.8
+        )
+        coEvery { mainAgent.handle(any(), any()) } returns agentResponse
 
         // When
         jarvisService.chat(testQuery, testSessionId)
 
         // Then
         verify(exactly = 1) { 
-            chatMessageRepository.findBySessionIdOrderByCreatedAtDesc(
-                testSessionId,
-                PageRequest.of(0, 20)
-            ) 
+            chatMessageRepository.findBySessionIdOrderByCreatedAtDesc(testSessionId)
         }
     }
 }

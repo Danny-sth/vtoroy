@@ -65,20 +65,58 @@ docker-compose -f docker-compose.prod.yml up -d
 
 ### Core Components
 
-**Spring AI Routing Workflow**: Autonomous decision-making system that routes queries between general conversation and knowledge base search. The routing logic analyzes chat history to avoid redundant searches.
+**Multi-Agent Architecture**: System now uses specialized agents for different knowledge sources with autonomous decision-making through Spring AI Routing Workflow Pattern.
 
-**Knowledge Service**: Manages Obsidian vault synchronization with pgvector-based semantic search using ONNX embeddings (all-MiniLM-L6-v2, 384 dimensions).
+**Knowledge Management**: Agent-based knowledge processing with ML-powered memory classification using hybrid ensemble voting from semantic, structural, and contextual classifiers.
 
-**Chat History**: Maintains conversational context with PostgreSQL storage, supporting up to 20 messages per session for context-aware responses.
+**Vector Search**: PostgreSQL with pgvector extension for semantic search using ONNX embeddings (all-MiniLM-L6-v2, 384 dimensions).
+
+**Chat History**: Conversational context with PostgreSQL storage, supporting up to 20 messages per session.
 
 **Web UI**: Static HTML/CSS/JS interface embedded in JAR, no Node.js dependencies.
 
-### Key Service Classes
+### Project Structure
 
-- `JarvisService`: Main chat orchestration with session management
-- `RoutingWorkflow`: AI-powered query routing with chat history analysis  
-- `KnowledgeService`: Obsidian vault sync and vector search
-- `ChatController` & `KnowledgeController`: REST API endpoints
+```
+src/main/kotlin/com/jarvis/
+├── agent/                 # Agent layer
+│   ├── contract/         # Agent interfaces  
+│   │   ├── Agent.kt      # Base agent interface
+│   │   └── KnowledgeManageable.kt  # Knowledge agent interface
+│   ├── MainAgent.kt      # Orchestrator agent with routing logic
+│   ├── ObsidianAgent.kt  # Obsidian vault specialist
+│   ├── NotionAgent.kt    # Notion workspace specialist (stub)
+│   └── memory/           # Memory classification layer
+│       ├── contract/     # Memory classification interfaces
+│       │   └── MemoryClassifier.kt     # ML classification system
+│       ├── HybridMemoryClassifier.kt      # Ensemble voting
+│       ├── SemanticMemoryClassifier.kt    # ML-based classification
+│       ├── StructuralMemoryClassifier.kt  # Pattern matching
+│       └── ContextMemoryClassifier.kt     # Metadata analysis
+├── service/              # Business logic
+│   ├── JarvisService.kt  # Main orchestration
+│   ├── KnowledgeService.kt  # Multi-agent knowledge management
+│   └── knowledge/        # Knowledge source layer
+│       ├── contract/     # Knowledge source interfaces
+│       │   └── KnowledgeSource.kt      # Pluggable knowledge sources
+│       └── ObsidianKnowledgeSource.kt  # Obsidian implementation
+├── repository/           # Data access layer (Spring Data JPA)
+│   ├── ChatMessageRepository.kt
+│   ├── ChatSessionRepository.kt
+│   └── KnowledgeFileRepository.kt
+├── controller/           # REST API layer
+├── entity/              # JPA entities
+├── dto/                 # Data transfer objects
+└── config/              # Spring configuration
+```
+
+### Key Components
+
+- **MainAgent**: Central orchestrator with routing workflow (dialogue/knowledge_search/delegate)
+- **ObsidianAgent**: Specialized agent for Obsidian vault management with ML classification
+- **HybridMemoryClassifier**: Ensemble ML system combining semantic, structural, and contextual analysis
+- **KnowledgeService**: Multi-agent coordinator for knowledge source management
+- **JarvisService**: Session management and chat orchestration
 
 ### Database Schema
 
@@ -199,7 +237,35 @@ If the all-MiniLM-L6-v2.onnx model is not found, the system automatically falls 
 Ensure PostgreSQL containers use `pgvector/pgvector:pg16` image, not standard PostgreSQL.
 
 ### Test Failures
-All 46 tests should pass. If integration tests fail, check that TestContainers can access Docker daemon.
+All 58 tests should pass. If integration tests fail, check that TestContainers can access Docker daemon.
+
+## Recent Updates (v0.4.0)
+
+### Architecture Improvements
+- **Refactored to Clean Architecture**: Interfaces separated from implementations in `contract/` packages
+- **Multi-Agent System**: Specialized agents for different knowledge sources
+- **ML-Powered Classification**: Replaced hardcoded logic with intelligent memory classification
+- **Layer-based Organization**: Each layer has its own `contract/` package for interfaces
+
+### New Features
+- **Hybrid Memory Classifier**: Ensemble voting from semantic, structural, and contextual classifiers
+- **Enhanced Knowledge Management**: Agent-based architecture with pluggable knowledge sources
+- **Improved Project Structure**: Clear separation of concerns with interfaces in dedicated packages
+
+### Memory Classification System
+- **SemanticMemoryClassifier**: Uses embeddings and cosine similarity for content analysis
+- **StructuralMemoryClassifier**: Pattern matching for document structure (headings, lists, tasks)
+- **ContextMemoryClassifier**: Metadata-based classification (file paths, timestamps, tags)
+- **HybridMemoryClassifier**: Ensemble voting with configurable weights
+
+### Supported Document Types
+- `meeting`: Meeting notes, standups, discussions
+- `project`: Project documentation, specifications
+- `task`: TODO items, action items, checklists  
+- `note`: General notes, observations
+- `code`: Code snippets, technical documentation
+- `documentation`: Reference materials, guides
+- `research`: Research notes, analysis
 
 ### Memory Issues
 Increase JVM heap size in production: `-Xmx2g` or configure Docker memory limits.

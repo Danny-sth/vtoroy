@@ -1,8 +1,25 @@
 package com.jarvis.dto
 
-import jakarta.validation.constraints.NotBlank
+import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonProperty
 
 data class KnowledgeSyncRequest(
-    @field:NotBlank(message = "Vault path cannot be blank")
-    val vaultPath: String
-)
+    @JsonProperty("sourceId") 
+    val sourceId: String = "obsidian",
+    
+    @JsonProperty("config")
+    val config: Map<String, Any> = emptyMap(),
+    
+    // Backward compatibility for old API
+    @JsonProperty("vaultPath")
+    val vaultPath: String? = null
+) {
+    @JsonIgnore
+    fun getEffectiveConfig(): Map<String, Any> {
+        return if (vaultPath != null) {
+            config + ("vaultPath" to vaultPath)
+        } else {
+            config
+        }
+    }
+}

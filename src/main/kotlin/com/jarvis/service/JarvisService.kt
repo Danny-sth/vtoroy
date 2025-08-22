@@ -1,6 +1,7 @@
 package com.jarvis.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.jarvis.agent.MainAgent
 import com.jarvis.dto.ChatResponse
 import com.jarvis.entity.ChatMessage
 import com.jarvis.entity.ChatSession
@@ -15,7 +16,7 @@ import java.time.LocalDateTime
 
 @Service
 class JarvisService(
-    private val routingWorkflow: RoutingWorkflow,
+    private val mainAgent: MainAgent,
     private val chatSessionRepository: ChatSessionRepository,
     private val chatMessageRepository: ChatMessageRepository,
     private val objectMapper: ObjectMapper
@@ -27,8 +28,6 @@ class JarvisService(
     
     @Value("\${jarvis.vector-search.max-results}")
     private var maxSearchResults: Int = 5
-    
-    // Routing Workflow теперь обрабатывает всю логику
     
     @Transactional
     suspend fun chat(query: String, sessionId: String): ChatResponse {
@@ -45,23 +44,23 @@ class JarvisService(
         saveMessage(session, MessageRole.USER, query)
         
         try {
-            // Передаем историю чата в Routing Workflow
-            val responseContent = routingWorkflow.route(query, chatHistory)
+            // Обрабатываем запрос через MainAgent
+            val agentResponse = mainAgent.handle(query, chatHistory)
             
             // Save assistant message
-            saveMessage(session, MessageRole.ASSISTANT, responseContent)
+            saveMessage(session, MessageRole.ASSISTANT, agentResponse.content)
             
             // Update session activity
             session.lastActiveAt = LocalDateTime.now()
             chatSessionRepository.save(session)
             
             return ChatResponse(
-                response = responseContent,
+                response = agentResponse.content,
                 sessionId = sessionId,
-                metadata = mapOf("approach" to "routing_workflow", "history_size" to chatHistory.size)
+                metadata = agentResponse.metadata + mapOf("history_size" to chatHistory.size)
             )
         } catch (e: Exception) {
-            logger.error(e) { "Error in routing workflow: ${e.message}" }
+            logger.error(e) { "Error in MainAgent: ${e.message}" }
             throw e
         }
     }
@@ -87,6 +86,4 @@ class JarvisService(
         )
         chatMessageRepository.save(message)
     }
-    
-    // Все методы перенесены в RoutingWorkflow
 }

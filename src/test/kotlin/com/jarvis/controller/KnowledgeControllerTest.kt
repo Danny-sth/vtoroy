@@ -106,57 +106,68 @@ class KnowledgeControllerTest {
         val request = KnowledgeSyncRequest(vaultPath = "/path/to/vault")
         
         coEvery { 
-            knowledgeService.syncObsidianVault("/path/to/vault") 
+            knowledgeService.syncSource("obsidian", mapOf("vaultPath" to "/path/to/vault")) 
         } returns 5
 
         // When & Then
-        mockMvc.perform(
+        val result = mockMvc.perform(
             post("/api/knowledge/sync")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )
+        
+        
+        result
             .andExpect(status().isOk)
             .andExpect(content().contentType(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.filesProcessed").value(5))
             .andExpect(jsonPath("$.message").value("Sync completed successfully"))
 
-        coVerify(exactly = 1) { knowledgeService.syncObsidianVault("/path/to/vault") }
+        coVerify(exactly = 1) { knowledgeService.syncSource("obsidian", mapOf("vaultPath" to "/path/to/vault")) }
     }
 
-    // Test: Request with null vault path should fail validation
+    // Test: Request with null vault path works with defaults
     @Test
     fun `POST sync should use default vault path when not provided`() {
         // Given - JSON with null vaultPath
         val request = """{"vaultPath": null}"""
+        
+        coEvery { 
+            knowledgeService.syncSource("obsidian", emptyMap()) 
+        } returns 0
 
-        // When & Then - should return 400 due to null value
+        // When & Then
         mockMvc.perform(
             post("/api/knowledge/sync")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(request)
         )
-            .andExpect(status().isBadRequest)
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.filesProcessed").value(0))
 
-        // Verify service was never called due to validation failure
-        coVerify(exactly = 0) { knowledgeService.syncObsidianVault(any()) }
+        coVerify(exactly = 1) { knowledgeService.syncSource("obsidian", emptyMap()) }
     }
 
-    // Test: Sync request with empty request body should fail validation
+    // Test: Sync request with empty request body uses defaults
     @Test
     fun `POST sync should handle empty request body`() {
         // Given
         val emptyRequest = "{}"
+        
+        coEvery { 
+            knowledgeService.syncSource("obsidian", emptyMap()) 
+        } returns 0
 
-        // When & Then - should return 400 due to missing required field
+        // When & Then
         mockMvc.perform(
             post("/api/knowledge/sync")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(emptyRequest)
         )
-            .andExpect(status().isBadRequest)
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.filesProcessed").value(0))
 
-        // Verify service was never called due to validation failure
-        coVerify(exactly = 0) { knowledgeService.syncObsidianVault(any()) }
+        coVerify(exactly = 1) { knowledgeService.syncSource("obsidian", emptyMap()) }
     }
 
     // Test: Sync with non-existent vault path
@@ -166,7 +177,7 @@ class KnowledgeControllerTest {
         val request = KnowledgeSyncRequest(vaultPath = "/invalid/path")
         
         coEvery { 
-            knowledgeService.syncObsidianVault("/invalid/path") 
+            knowledgeService.syncSource("obsidian", mapOf("vaultPath" to "/invalid/path")) 
         } throws IllegalArgumentException("Vault path does not exist: /invalid/path")
 
         // When & Then
@@ -186,7 +197,7 @@ class KnowledgeControllerTest {
         val request = KnowledgeSyncRequest(vaultPath = "/some/path")
         
         coEvery { 
-            knowledgeService.syncObsidianVault("/some/path") 
+            knowledgeService.syncSource("obsidian", mapOf("vaultPath" to "/some/path")) 
         } throws RuntimeException("Database connection failed")
 
         // When & Then
@@ -221,7 +232,7 @@ class KnowledgeControllerTest {
         val request = KnowledgeSyncRequest(vaultPath = "/large/vault")
         
         coEvery { 
-            knowledgeService.syncObsidianVault("/large/vault") 
+            knowledgeService.syncSource("obsidian", mapOf("vaultPath" to "/large/vault")) 
         } returns 1000
 
         // When & Then
@@ -268,7 +279,7 @@ class KnowledgeControllerTest {
         val request = KnowledgeSyncRequest(vaultPath = specialPath)
         
         coEvery { 
-            knowledgeService.syncObsidianVault(specialPath) 
+            knowledgeService.syncSource("obsidian", mapOf("vaultPath" to specialPath)) 
         } returns 2
 
         // When & Then
@@ -280,6 +291,6 @@ class KnowledgeControllerTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.filesProcessed").value(2))
 
-        coVerify(exactly = 1) { knowledgeService.syncObsidianVault(specialPath) }
+        coVerify(exactly = 1) { knowledgeService.syncSource("obsidian", mapOf("vaultPath" to specialPath)) }
     }
 }

@@ -56,6 +56,17 @@ jarvis:
     session-timeout-minutes: 60
     max-history-size: 20
     
+  memory:
+    classification:
+      semantic-weight: 0.5
+      structural-weight: 0.3
+      context-weight: 0.2
+      minimum-confidence: 0.1
+      enable-ensemble: true
+      enable-semantic-classifier: true
+      enable-structural-classifier: true
+      enable-context-classifier: true
+    
   vector-search:
     max-results: 5
     min-similarity: 0.7
