@@ -1,5 +1,8 @@
 # Jarvis Deployment Guide
 
+> **Версия:** 0.5.0 - ReAct Reasoning System  
+> **Новые возможности:** Full CRUD Obsidian + AI-driven Decision Making
+
 ## Быстрый деплой на сервер
 
 ### 1. Настройка переменных окружения
@@ -155,6 +158,47 @@ curl -X POST http://90.156.230.18:8080/api/chat \
     "sessionId": "test-session-123"
   }'
 ```
+
+### 3. Тестирование ReAct Reasoning System (v0.5.0)
+
+#### Создание заметки с ReAct
+
+```bash
+curl -X POST http://90.156.230.18:8080/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "создай заметку с названием daily-tasks.md и добавь туда список дел на сегодня",
+    "sessionId": "react-test-create"
+  }'
+```
+
+#### Поиск и анализ заметок с ReAct
+
+```bash  
+curl -X POST http://90.156.230.18:8080/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "найди все заметки про проекты и покажи их названия",
+    "sessionId": "react-test-search"
+  }'
+```
+
+#### Удаление файла с ReAct
+
+```bash
+curl -X POST http://90.156.230.18:8080/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "удали файл obsidian-vault/test456.md",
+    "sessionId": "react-test-delete"
+  }'
+```
+
+**Ожидаемый результат ReAct operations:**
+- ✅ Многоступенчатые рассуждения в `metadata.reasoning_steps`
+- ✅ Реальные физические операции с файлами
+- ✅ Полные структурированные ответы (не обрезанные)
+- ✅ Автоматический fallback при ошибках простых операций
 
 ## Troubleshooting
 

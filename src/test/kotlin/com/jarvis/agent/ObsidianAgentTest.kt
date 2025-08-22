@@ -2,12 +2,19 @@ package com.jarvis.agent
 
 import com.jarvis.agent.memory.HybridMemoryClassifier
 import com.jarvis.agent.memory.contract.MemoryType
+import com.jarvis.agent.reasoning.ObsidianReasoningEngine
+import com.jarvis.service.knowledge.ObsidianVaultManager
 import io.mockk.*
 import kotlinx.coroutines.test.runTest
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.springframework.ai.anthropic.AnthropicChatModel
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
+import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.chat.prompt.Prompt
 import java.nio.file.Path
 import kotlin.io.path.writeText
 
@@ -18,11 +25,23 @@ class ObsidianAgentTest {
     
     private lateinit var obsidianAgent: ObsidianAgent
     private lateinit var mockMemoryClassifier: HybridMemoryClassifier
+    private lateinit var mockVaultManager: ObsidianVaultManager
+    private lateinit var mockChatModel: AnthropicChatModel
+    private lateinit var mockReasoningEngine: ObsidianReasoningEngine
     
     @BeforeEach
     fun setup() {
         mockMemoryClassifier = mockk()
-        obsidianAgent = ObsidianAgent(tempDir.toString(), mockMemoryClassifier)
+        mockVaultManager = mockk()
+        mockChatModel = mockk()
+        mockReasoningEngine = mockk()
+        
+        // Mock AI model for parseQuery
+        every { mockChatModel.call(any<Prompt>()) } returns ChatResponse(listOf(
+            Generation(AssistantMessage("""{"action": "SEARCH_VAULT", "parameters": {"query": "test"}}"""))
+        ))
+        
+        obsidianAgent = ObsidianAgent(tempDir.toString(), mockMemoryClassifier, mockVaultManager, mockChatModel, mockReasoningEngine)
         
         // Setup smart mock responses based on content
         coEvery { mockMemoryClassifier.classify(any(), any()) } answers {
@@ -92,7 +111,7 @@ class ObsidianAgentTest {
     @Test
     fun `canAccessSource should return false for non-existing directory`() {
         // Given
-        val nonExistentAgent = ObsidianAgent("/non/existent/path", mockMemoryClassifier)
+        val nonExistentAgent = ObsidianAgent("/non/existent/path", mockMemoryClassifier, mockVaultManager, mockChatModel, mockReasoningEngine)
         
         // When
         val canAccess = nonExistentAgent.canAccessSource()

@@ -49,7 +49,7 @@ services:
       - "8080:8080"
     volumes:
       - ../logs:/app/logs  # Application logs
-      - ../obsidian-vault:/app/obsidian-vault:ro  # Read-only vault mount
+      - ../obsidian-vault:/app/obsidian-vault:rw  # Read-write vault access
     depends_on:
       postgres:
         condition: service_healthy

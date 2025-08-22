@@ -53,8 +53,8 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      # Mount local obsidian vault for live updates
-      - ../obsidian-vault:/app/obsidian-vault:ro
+      # Mount local obsidian vault for full read-write access
+      - ../obsidian-vault:/app/obsidian-vault:rw
       # Mount ONNX model
       - ../src/main/resources/models:/app/models:ro
     networks:

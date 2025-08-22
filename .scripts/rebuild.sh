@@ -10,6 +10,17 @@
 
 set -e
 
+# Загружаем переменные из .env файла
+if [ -f "../.env" ]; then
+    echo "📋 Loading environment variables from .env file..."
+    set -a  # automatically export all variables
+    source ../.env
+    set +a  # stop automatically exporting
+    echo "✅ Environment variables loaded"
+else
+    echo "⚠️  Warning: .env file not found, using system environment variables"
+fi
+
 echo "🔄 Rebuilding Jarvis containers..."
 
 # Остановка и удаление контейнеров

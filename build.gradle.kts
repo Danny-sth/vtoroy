@@ -8,8 +8,8 @@ plugins {
 }
 
 group = "com.jarvis"
-version = "0.4.0"
-description = "Personal AI Assistant with Autonomous Decision Making"
+version = "0.6.0"
+description = "Personal AI Assistant with Autonomous Decision Making and Full Obsidian Integration"
 
 java {
 	toolchain {

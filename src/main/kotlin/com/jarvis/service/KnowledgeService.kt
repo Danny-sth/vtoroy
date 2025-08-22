@@ -10,6 +10,7 @@ import com.jarvis.dto.KnowledgeStatusResponse
 import com.jarvis.entity.KnowledgeFile
 import com.pgvector.PGvector
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.ai.embedding.EmbeddingModel
@@ -52,7 +53,6 @@ class KnowledgeService(
      * @param config Agent-specific configuration
      * @return Number of items synced
      */
-    @Transactional
     suspend fun syncSource(sourceId: String, config: Map<String, Any> = emptyMap()): Int = withContext(Dispatchers.IO) {
         val agent = knowledgeAgents.find { 
             val agentId = it::class.simpleName?.removeSuffix("Agent")?.lowercase() ?: "unknown"
@@ -68,6 +68,33 @@ class KnowledgeService(
         val memories = agent.formMemories(config)
         var processedCount = 0
         
+        // Get current memory IDs from the source
+        val currentSourceIds = memories.map { it.id }.toSet()
+        
+        // Get existing records from database for this source
+        val existingRecords = knowledgeFileRepository.findBySource(sourceId)
+        val existingSourceIds = existingRecords.map { it.sourceId }.toSet()
+        
+        // Find records that no longer exist in source and should be deleted
+        val recordsToDelete = existingSourceIds - currentSourceIds
+        if (recordsToDelete.isNotEmpty()) {
+            logger.info { "Removing ${recordsToDelete.size} deleted files from database for source $sourceId" }
+            val recordsToDeleteEntities = existingRecords.filter { it.sourceId in recordsToDelete }
+            try {
+                // Use runBlocking to execute deletion in blocking context with transaction
+                runBlocking {
+                    deleteObsoleteRecords(recordsToDeleteEntities)
+                }
+                logger.info { "Successfully deleted ${recordsToDeleteEntities.size} obsolete records" }
+                recordsToDeleteEntities.forEach { record ->
+                    logger.debug { "Deleted record: ${record.filePath} (sourceId: ${record.sourceId})" }
+                }
+            } catch (e: Exception) {
+                logger.error(e) { "Error deleting obsolete records" }
+            }
+        }
+        
+        // Process current memories
         memories.forEach { memory ->
             try {
                 processKnowledgeItem(sourceId, memory)
@@ -77,8 +104,20 @@ class KnowledgeService(
             }
         }
         
-        logger.info { "Processed $processedCount memories from agent ${agent::class.simpleName}" }
+        logger.info { "Processed $processedCount memories from agent ${agent::class.simpleName}, deleted ${recordsToDelete.size} obsolete records" }
         processedCount
+    }
+    
+    /**
+     * Delete obsolete records in a transaction
+     * This method runs in blocking context to maintain transaction integrity
+     */
+    @Transactional
+    fun deleteObsoleteRecords(records: List<KnowledgeFile>) {
+        if (records.isNotEmpty()) {
+            knowledgeFileRepository.deleteAll(records)
+            logger.debug { "Deleted ${records.size} obsolete records from database" }
+        }
     }
     
     /**
