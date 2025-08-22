@@ -123,7 +123,7 @@ echo "ANTHROPIC_API_KEY=your-anthropic-api-key" > .env
 
 ```bash
 # Используйте готовый скрипт для полной пересборки
-./rebuild.sh
+./.scripts/rebuild.sh
 
 # Или запуск без пересборки
 docker-compose -f docker-compose.local.yml up -d
@@ -211,27 +211,60 @@ curl -X POST http://localhost:8080/api/knowledge/sync \
 curl -X GET http://localhost:8080/api/knowledge/status
 ```
 
-## Структура проекта
+## 📂 Структура проекта v0.4.0
 
 ```
 jarvis/
+├── .scripts/                       # 🔧 Build and Deploy Scripts
+│   ├── rebuild.sh                  # Docker rebuild script
+│   ├── clean-rebuild.sh           # Clean rebuild script
+│   ├── deploy.sh                  # Production deployment
+│   └── stop.sh                    # Stop services script
+├── docs/                          # 📚 Documentation
+│   ├── ARCHITECTURE.md            # Detailed architecture documentation
+│   ├── DEPLOYMENT.md              # Deployment guide
+│   └── CHANGELOG.md               # Version history
 ├── src/main/kotlin/com/jarvis/
-│   ├── agent/           # MainAgent и агентная архитектура
-│   ├── config/          # Конфигурация Spring AI, БД и PGVectorType
-│   ├── controller/      # REST контроллеры (Chat, Knowledge, System)
-│   ├── service/         # Бизнес-логика (JarvisService, LoggingService)
-│   ├── entity/          # JPA сущности
-│   ├── repository/      # Репозитории
-│   └── dto/            # DTO классы
+│   ├── agent/                     # 🤖 Multi-Agent Domain Layer
+│   │   ├── MainAgent.kt          # Central orchestrator
+│   │   ├── ObsidianAgent.kt      # Obsidian specialist
+│   │   ├── NotionAgent.kt        # Notion specialist (stub)
+│   │   ├── contract/             # 📋 Agent Contracts
+│   │   │   ├── Agent.kt          # Base agent interface
+│   │   │   └── KnowledgeManageable.kt # Knowledge management interface
+│   │   └── memory/               # 🧠 ML Memory Classification
+│   │       ├── HybridMemoryClassifier.kt     # Ensemble voting
+│   │       ├── SemanticMemoryClassifier.kt   # ML-based analysis
+│   │       ├── StructuralMemoryClassifier.kt # Pattern matching
+│   │       ├── ContextMemoryClassifier.kt    # Metadata analysis
+│   │       └── contract/         # 🎯 Classification Contracts
+│   │           └── MemoryClassifier.kt # ML classification interface
+│   ├── service/                   # 🧠 Application Services
+│   │   ├── JarvisService.kt      # Main orchestration service
+│   │   ├── KnowledgeService.kt   # Multi-agent coordinator
+│   │   ├── LoggingService.kt     # Real-time logging service
+│   │   └── knowledge/            # 📂 Knowledge Sources
+│   │       ├── ObsidianKnowledgeSource.kt # Obsidian implementation
+│   │       └── contract/         # 🔗 Knowledge Contracts
+│   │           └── KnowledgeSource.kt # Knowledge source interface
+│   ├── controller/               # 🎮 Presentation Layer
+│   │   ├── ChatController.kt     # Chat REST API
+│   │   ├── KnowledgeController.kt # Knowledge management API
+│   │   └── SystemController.kt   # System info + logs streaming
+│   ├── entity/                   # 🗄️ JPA Entities
+│   ├── repository/               # 💾 Data Access Layer
+│   ├── dto/                      # 📦 Data Transfer Objects
+│   └── config/                   # ⚙️ Spring Configuration
 ├── src/main/resources/
-│   ├── static/          # Web UI (HTML, CSS, JavaScript)
-│   │   ├── css/style.css     # Стили с исправленными вкладками
-│   │   ├── js/app.js         # JavaScript логика UI
-│   │   └── index.html        # Главная страница
-│   ├── db/migration/    # Flyway миграции
-│   └── application.yml  # Настройки приложения
-├── src/test/kotlin/com/jarvis/  # Полный набор тестов
-│   ├── config/          # TestConfiguration с моками
+│   ├── static/                   # 🌐 Web UI (Tabbed Interface)
+│   │   ├── css/style.css        # Enhanced Jarvis-themed styles
+│   │   ├── js/app.js            # Dynamic UI with version loading
+│   │   └── index.html           # Multi-tab interface (Chat/Knowledge/Logs)
+│   ├── db/migration/            # 📊 Flyway Database Migrations
+│   └── application*.yml         # 🔧 Environment-specific configs
+├── src/test/kotlin/com/jarvis/   # 🧪 Comprehensive Test Suite (46/46 passing)
+│   ├── agent/                   # Agent tests
+│   ├── config/                  # TestConfiguration with mocks
 │   ├── controller/      # Controller тесты (MockMvc)
 │   ├── service/         # Unit тесты сервисов
 │   └── integration/     # Integration тесты (TestContainers)
@@ -300,7 +333,7 @@ services:
 
 ```bash
 # Пересборка и запуск (оптимизированная)
-./rebuild.sh
+./.scripts/rebuild.sh
 
 # Остановка всех контейнеров
 ./stop.sh
