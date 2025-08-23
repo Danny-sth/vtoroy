@@ -7,6 +7,8 @@ class JarvisApp {
         this.currentTab = 'chat';
         this.logsPaused = false;
         this.logsEventSource = null;
+        this.thinkingEventSource = null;
+        this.currentThinkingElement = null;
         
         this.initializeElements();
         this.bindEvents();
@@ -14,6 +16,7 @@ class JarvisApp {
         this.checkStatus();
         this.updateSessionDisplay();
         this.loadVersion();
+        this.initializeAIAvatar();
     }
 
     // Initialize DOM elements
@@ -102,6 +105,17 @@ class JarvisApp {
         
         // Auto-resize textarea
         this.messageInput.addEventListener('input', () => this.autoResizeTextarea());
+    }
+
+    // Initialize AI Avatar
+    initializeAIAvatar() {
+        const canvas = document.getElementById('ai-avatar');
+        if (canvas) {
+            this.aiAvatar = new AIAvatar(canvas);
+            console.log('AI Avatar initialized');
+        } else {
+            console.warn('AI Avatar canvas not found');
+        }
     }
 
     // Generate unique session ID
@@ -211,6 +225,105 @@ class JarvisApp {
         }
     }
 
+    // Connect to thinking stream for real-time thoughts
+    connectThinkingStream() {
+        if (this.thinkingEventSource) {
+            this.thinkingEventSource.close();
+        }
+        
+        console.log('Connecting to thinking stream for session:', this.sessionId);
+        
+        this.thinkingEventSource = new EventSource(`/api/thinking/stream/${this.sessionId}`);
+        
+        this.thinkingEventSource.onopen = () => {
+            console.log('Connected to thinking stream');
+        };
+        
+        this.thinkingEventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                this.handleThinkingEvent(data);
+            } catch (e) {
+                console.error('Error parsing thinking event:', e);
+            }
+        };
+        
+        this.thinkingEventSource.onerror = (error) => {
+            console.error('Thinking stream error:', error);
+        };
+    }
+    
+    // Handle thinking events from SSE
+    handleThinkingEvent(data) {
+        console.log('Thinking event:', data);
+        
+        if (data.type === 'connected') {
+            console.log('Connected to Jarvis thinking stream');
+            return;
+        }
+        
+        if (data.type === 'complete') {
+            this.finishThinking();
+            return;
+        }
+        
+        // Show thinking message in real-time
+        this.addThinkingStep(data.message, data.type);
+    }
+    
+    // Add thinking step to chat
+    addThinkingStep(message, type) {
+        if (!this.currentThinkingElement) {
+            this.createThinkingElement();
+        }
+        
+        const stepElement = document.createElement('div');
+        stepElement.className = `thinking-step thinking-${type}`;
+        stepElement.textContent = message;
+        
+        const stepsContainer = this.currentThinkingElement.querySelector('.thinking-steps');
+        stepsContainer.appendChild(stepElement);
+        
+        this.scrollToBottom();
+    }
+    
+    // Create thinking container
+    createThinkingElement() {
+        const messageElement = document.createElement('div');
+        messageElement.className = 'message assistant thinking-message';
+        
+        const avatar = document.createElement('div');
+        avatar.className = 'message-avatar';
+        avatar.textContent = '🤖';
+        
+        const messageContent = document.createElement('div');
+        messageContent.className = 'message-content';
+        messageContent.innerHTML = `
+            <div class="thinking-header">
+                <span class="thinking-title">🧠 Джарвис думает...</span>
+            </div>
+            <div class="thinking-steps"></div>
+        `;
+        
+        messageElement.appendChild(avatar);
+        messageElement.appendChild(messageContent);
+        
+        this.messagesContainer.appendChild(messageElement);
+        this.currentThinkingElement = messageElement;
+        
+        this.scrollToBottom();
+    }
+    
+    // Finish thinking and prepare for response
+    finishThinking() {
+        if (this.currentThinkingElement) {
+            const header = this.currentThinkingElement.querySelector('.thinking-title');
+            if (header) {
+                header.textContent = '✅ Готов ответить';
+            }
+        }
+    }
+
     // Send message to Jarvis
     async sendMessage() {
         const message = this.messageInput.value.trim();
@@ -224,8 +337,15 @@ class JarvisApp {
         // Add user message to chat
         this.addMessage('user', message);
 
-        // Show loading
-        this.setLoading(true);
+        // Connect to thinking stream for real-time updates
+        this.connectThinkingStream();
+
+        // Set avatar to thinking mode
+        if (this.aiAvatar) {
+            this.aiAvatar.setMode('thinking');
+        }
+
+        // Real-time thinking display instead of loader
 
         try {
             const response = await fetch('/api/chat', {
@@ -245,6 +365,11 @@ class JarvisApp {
 
             const data = await response.json();
             
+            // Set avatar to speaking mode
+            if (this.aiAvatar) {
+                this.aiAvatar.setMode('speaking');
+            }
+            
             // Add assistant response to chat
             this.addMessage('assistant', data.response, data.metadata);
 
@@ -252,7 +377,19 @@ class JarvisApp {
             console.error('Send message failed:', error);
             this.addMessage('assistant', `Извините, произошла ошибка: ${error.message}`, { error: true });
         } finally {
-            this.setLoading(false);
+            // Loader management removed - using real-time thinking display instead
+            
+            // Close thinking stream and reset
+            if (this.thinkingEventSource) {
+                this.thinkingEventSource.close();
+                this.thinkingEventSource = null;
+            }
+            this.currentThinkingElement = null;
+            
+            // Reset avatar to idle mode
+            if (this.aiAvatar) {
+                this.aiAvatar.setMode('idle');
+            }
         }
     }
 
@@ -284,6 +421,12 @@ class JarvisApp {
 
         messageContent.appendChild(messageTime);
 
+        // Add reasoning details if available
+        if (metadata && metadata.reasoning_details) {
+            const reasoningElement = this.createReasoningElement(metadata.reasoning_details);
+            messageContent.appendChild(reasoningElement);
+        }
+
         // Add metadata if available
         if (metadata) {
             const metadataElement = document.createElement('div');
@@ -293,6 +436,15 @@ class JarvisApp {
             if (metadata.approach) {
                 metadataText.push(`Подход: ${metadata.approach}`);
             }
+            if (metadata.reasoning_steps) {
+                metadataText.push(`🧠 Reasoning: ${metadata.reasoning_steps} шагов`);
+            }
+            if (metadata.tools_used && metadata.tools_used.length > 0) {
+                metadataText.push(`🔧 Инструменты: ${metadata.tools_used.join(', ')}`);
+            }
+            if (metadata.steps_count) {
+                metadataText.push(`🎯 Smart Conductor: ${metadata.steps_count} шагов`);
+            }
             if (metadata.error) {
                 metadataText.push('⚠️ Ошибка');
                 messageContent.style.borderColor = 'var(--error)';
@@ -301,6 +453,28 @@ class JarvisApp {
             
             metadataElement.textContent = metadataText.join(' • ');
             messageContent.appendChild(metadataElement);
+            
+            // Show detailed execution steps for Smart Conductor
+            if (metadata.execution_details && metadata.execution_details.length > 0) {
+                const stepsElement = document.createElement('details');
+                stepsElement.className = 'reasoning-steps';
+                stepsElement.innerHTML = `
+                    <summary>🔍 Детали выполнения (${metadata.execution_details.length} шагов)</summary>
+                    <div class="steps-content">
+                        ${metadata.execution_details.map(step => `
+                            <div class="step-item">
+                                <div class="step-header">
+                                    <span class="step-number">Шаг ${step.step}</span>
+                                    <span class="step-type">${step.type}</span>
+                                </div>
+                                <div class="step-action">${step.action}</div>
+                                ${step.result ? `<div class="step-result">${step.result}...</div>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                messageContent.appendChild(stepsElement);
+            }
         }
 
         messageElement.appendChild(avatar);
@@ -323,6 +497,103 @@ class JarvisApp {
         this.updateSendButton();
     }
 
+    // Create reasoning element for displaying thinking process
+    createReasoningElement(reasoningDetails) {
+        const container = document.createElement('div');
+        container.className = 'reasoning-container';
+        container.style.cssText = `
+            background: rgba(0, 255, 136, 0.05);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 12px 0;
+            font-size: 0.9em;
+        `;
+        
+        const header = document.createElement('div');
+        header.style.cssText = `
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        `;
+        header.innerHTML = '🧠 <span>Процесс reasoning (нажмите для деталей)</span>';
+        
+        const details = document.createElement('div');
+        details.className = 'reasoning-details';
+        details.style.cssText = `
+            display: none;
+            margin-top: 12px;
+        `;
+        
+        // Create steps
+        reasoningDetails.forEach((step, index) => {
+            const stepElement = document.createElement('div');
+            stepElement.style.cssText = `
+                background: rgba(0, 0, 0, 0.3);
+                border-left: 3px solid var(--primary);
+                padding: 8px 12px;
+                margin: 8px 0;
+                border-radius: 4px;
+            `;
+            
+            const stepHeader = document.createElement('div');
+            stepHeader.style.cssText = `
+                font-weight: bold;
+                color: var(--primary);
+                margin-bottom: 6px;
+            `;
+            stepHeader.textContent = `Шаг ${step.step}`;
+            
+            const thought = document.createElement('div');
+            thought.style.cssText = 'margin: 4px 0; opacity: 0.9;';
+            thought.innerHTML = `💭 <strong>Мысль:</strong> ${step.thought}`;
+            
+            stepElement.appendChild(stepHeader);
+            stepElement.appendChild(thought);
+            
+            if (step.action) {
+                const action = document.createElement('div');
+                action.style.cssText = 'margin: 4px 0; opacity: 0.9;';
+                action.innerHTML = `🎯 <strong>Действие:</strong> ${step.action}`;
+                stepElement.appendChild(action);
+            }
+            
+            if (step.input) {
+                const input = document.createElement('div');
+                input.style.cssText = 'margin: 4px 0; opacity: 0.9;';
+                input.innerHTML = `📝 <strong>Вход:</strong> ${step.input}`;
+                stepElement.appendChild(input);
+            }
+            
+            if (step.observation) {
+                const observation = document.createElement('div');
+                observation.style.cssText = 'margin: 4px 0; opacity: 0.9;';
+                observation.innerHTML = `👁️ <strong>Наблюдение:</strong> ${step.observation}`;
+                stepElement.appendChild(observation);
+            }
+            
+            details.appendChild(stepElement);
+        });
+        
+        // Toggle details on click
+        header.addEventListener('click', () => {
+            const isVisible = details.style.display !== 'none';
+            details.style.display = isVisible ? 'none' : 'block';
+            header.querySelector('span').textContent = isVisible ? 
+                'Процесс reasoning (нажмите для деталей)' : 
+                'Процесс reasoning (нажмите чтобы скрыть)';
+        });
+        
+        container.appendChild(header);
+        container.appendChild(details);
+        
+        return container;
+    }
+    
     // Scroll to bottom of messages
     scrollToBottom() {
         // Immediate scroll
@@ -589,6 +860,105 @@ class JarvisApp {
             // Version element will keep its default value
         }
     }
+    
+    // Connect to thinking stream for real-time updates
+    connectThinkingStream() {
+        if (this.thinkingEventSource) {
+            this.thinkingEventSource.close();
+        }
+        
+        const url = `/api/thinking/stream/${this.sessionId}`;
+        console.log('Connecting to thinking stream:', url);
+        
+        this.thinkingEventSource = new EventSource(url);
+        
+        this.thinkingEventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                this.handleThinkingEvent(data);
+            } catch (error) {
+                console.error('Failed to parse thinking event:', error);
+            }
+        };
+        
+        this.thinkingEventSource.onerror = (event) => {
+            console.error('Thinking stream error:', event);
+        };
+        
+        this.thinkingEventSource.onopen = (event) => {
+            console.log('Thinking stream connected');
+        };
+    }
+    
+    // Handle thinking events from SSE
+    handleThinkingEvent(data) {
+        console.log('Thinking event:', data);
+        
+        if (data.type === 'connected') {
+            // Stream connected
+            return;
+        }
+        
+        if (data.type === 'complete') {
+            // Thinking complete - keep display but mark as finished
+            if (this.currentThinkingElement) {
+                this.currentThinkingElement.classList.add('thinking-finished');
+                this.currentThinkingElement = null; // Reset for next request
+            }
+            return;
+        }
+        
+        // Create or update thinking display
+        if (!this.currentThinkingElement) {
+            this.currentThinkingElement = this.createThinkingElement();
+            this.messagesContainer.appendChild(this.currentThinkingElement);
+            this.scrollToBottom();
+        }
+        
+        // Add thinking step
+        this.addThinkingStep(data);
+    }
+    
+    // Create thinking element container
+    createThinkingElement() {
+        const element = document.createElement('div');
+        element.className = 'message assistant thinking-message';
+        element.innerHTML = `
+            <div class="message-avatar">
+                <div class="avatar-circle">J</div>
+            </div>
+            <div class="message-content">
+                <div class="message-text">
+                    <div class="thinking-header">
+                        <div class="thinking-title">🧠 Мысли Джарвиса</div>
+                    </div>
+                    <div class="thinking-steps"></div>
+                </div>
+            </div>
+        `;
+        return element;
+    }
+    
+    // Add thinking step to display
+    addThinkingStep(data) {
+        if (!this.currentThinkingElement) return;
+        
+        const stepsContainer = this.currentThinkingElement.querySelector('.thinking-steps');
+        if (!stepsContainer) return;
+        
+        const stepElement = document.createElement('div');
+        stepElement.className = `thinking-step thinking-${data.type}`;
+        stepElement.textContent = data.message;
+        
+        stepsContainer.appendChild(stepElement);
+        this.scrollToBottom();
+        
+        // Add animation
+        setTimeout(() => {
+            stepElement.style.opacity = '1';
+            stepElement.style.transform = 'translateX(0)';
+        }, 50);
+    }
 }
 
 // Initialize app when DOM is loaded
@@ -609,6 +979,177 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// AI Avatar Animation
+class AIAvatar {
+    constructor(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.pixelSize = 5;
+        this.width = canvas.width / this.pixelSize;
+        this.height = canvas.height / this.pixelSize;
+        
+        // Avatar state
+        this.time = 0;
+        this.mode = 'idle'; // idle, thinking, speaking
+        this.brainActivity = [];
+        this.particles = [];
+        
+        // Initialize brain activity matrix
+        for (let i = 0; i < this.width; i++) {
+            this.brainActivity[i] = [];
+            for (let j = 0; j < this.height; j++) {
+                this.brainActivity[i][j] = Math.random() * 0.3;
+            }
+        }
+        
+        // Avatar colors
+        this.colors = {
+            background: '#0a0a0a',
+            base: '#00ff88',
+            accent: '#00ffaa',
+            glow: '#00ff8844',
+            particle: '#00ffcc'
+        };
+        
+        this.animate();
+    }
+    
+    drawPixel(x, y, color) {
+        this.ctx.fillStyle = color;
+        this.ctx.fillRect(
+            x * this.pixelSize,
+            y * this.pixelSize,
+            this.pixelSize,
+            this.pixelSize
+        );
+    }
+    
+    drawHead() {
+        const centerX = this.width / 2;
+        const centerY = this.height / 2;
+        const radius = this.width / 3;
+        
+        // Clear canvas
+        this.ctx.fillStyle = this.colors.background;
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Draw pixel head shape
+        for (let x = 0; x < this.width; x++) {
+            for (let y = 0; y < this.height; y++) {
+                const dx = x - centerX;
+                const dy = y - centerY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // Head outline
+                if (distance < radius && distance > radius - 2) {
+                    this.drawPixel(x, y, this.colors.base);
+                }
+                
+                // Brain pattern
+                if (distance < radius - 2) {
+                    const activity = this.brainActivity[x][y];
+                    const pulse = Math.sin(this.time * 0.05 + distance * 0.3) * 0.5 + 0.5;
+                    const intensity = activity * pulse;
+                    
+                    if (intensity > 0.3) {
+                        const alpha = Math.floor(intensity * 255).toString(16).padStart(2, '0');
+                        this.drawPixel(x, y, this.colors.accent + alpha);
+                    }
+                }
+                
+                // Eyes
+                const eyeY = centerY - 3;
+                const leftEyeX = centerX - 5;
+                const rightEyeX = centerX + 5;
+                
+                if ((Math.abs(x - leftEyeX) < 2 && Math.abs(y - eyeY) < 2) ||
+                    (Math.abs(x - rightEyeX) < 2 && Math.abs(y - eyeY) < 2)) {
+                    const blink = Math.random() > 0.995 ? 0 : 1;
+                    if (blink) {
+                        this.drawPixel(x, y, this.colors.base);
+                    }
+                }
+                
+                // Mouth animation (when speaking)
+                if (this.mode === 'speaking') {
+                    const mouthY = centerY + 5;
+                    const mouthWidth = 4 + Math.sin(this.time * 0.2) * 2;
+                    if (Math.abs(x - centerX) < mouthWidth && Math.abs(y - mouthY) < 1) {
+                        this.drawPixel(x, y, this.colors.accent);
+                    }
+                }
+            }
+        }
+        
+        // Update brain activity
+        if (Math.random() > 0.9) {
+            const x = Math.floor(Math.random() * this.width);
+            const y = Math.floor(Math.random() * this.height);
+            this.brainActivity[x][y] = Math.min(1, this.brainActivity[x][y] + 0.5);
+        }
+        
+        // Decay brain activity
+        for (let x = 0; x < this.width; x++) {
+            for (let y = 0; y < this.height; y++) {
+                this.brainActivity[x][y] *= 0.98;
+            }
+        }
+        
+        // Draw particles
+        this.updateParticles();
+    }
+    
+    updateParticles() {
+        // Add new particles occasionally
+        if (Math.random() > 0.95) {
+            this.particles.push({
+                x: Math.random() * this.width,
+                y: this.height,
+                vx: (Math.random() - 0.5) * 0.5,
+                vy: -Math.random() * 0.5 - 0.5,
+                life: 1
+            });
+        }
+        
+        // Update and draw particles
+        this.particles = this.particles.filter(p => {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life -= 0.02;
+            
+            if (p.life > 0) {
+                const alpha = Math.floor(p.life * 255).toString(16).padStart(2, '0');
+                this.drawPixel(Math.floor(p.x), Math.floor(p.y), this.colors.particle + alpha);
+                return true;
+            }
+            return false;
+        });
+    }
+    
+    setMode(mode) {
+        this.mode = mode;
+        const statusText = document.getElementById('avatar-status-text');
+        if (statusText) {
+            switch(mode) {
+                case 'thinking':
+                    statusText.textContent = 'Обрабатываю...';
+                    break;
+                case 'speaking':
+                    statusText.textContent = 'Отвечаю...';
+                    break;
+                default:
+                    statusText.textContent = 'Готов к работе';
+            }
+        }
+    }
+    
+    animate() {
+        this.time++;
+        this.drawHead();
+        requestAnimationFrame(() => this.animate());
+    }
+}
 
 // Service worker for offline support (future enhancement)
 if ('serviceWorker' in navigator) {

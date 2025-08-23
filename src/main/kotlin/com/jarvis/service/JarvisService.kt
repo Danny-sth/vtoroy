@@ -1,7 +1,7 @@
 package com.jarvis.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.jarvis.agent.MainAgent
+import com.jarvis.agent.JarvisMainAgent
 import com.jarvis.dto.ChatResponse
 import com.jarvis.entity.ChatMessage
 import com.jarvis.entity.ChatSession
@@ -16,7 +16,7 @@ import java.time.LocalDateTime
 
 @Service
 class JarvisService(
-    private val mainAgent: MainAgent,
+    private val jarvisMainAgent: JarvisMainAgent,
     private val chatSessionRepository: ChatSessionRepository,
     private val chatMessageRepository: ChatMessageRepository,
     private val objectMapper: ObjectMapper
@@ -36,31 +36,31 @@ class JarvisService(
         // Get or create session
         val session = getOrCreateSession(sessionId)
         
-        // Load chat history for context
+        // Save user message FIRST
+        saveMessage(session, MessageRole.USER, query)
+        
+        // Load chat history for context (now includes the user message with sessionId)
         val chatHistory = loadChatHistory(sessionId)
         logger.debug { "Loaded ${chatHistory.size} messages from history" }
         
-        // Save user message
-        saveMessage(session, MessageRole.USER, query)
-        
         try {
-            // Обрабатываем запрос через MainAgent
-            val agentResponse = mainAgent.handle(query, chatHistory)
+            // Обрабатываем запрос через JarvisMainAgent
+            val responseContent = jarvisMainAgent.processQuery(query, sessionId, chatHistory)
             
             // Save assistant message
-            saveMessage(session, MessageRole.ASSISTANT, agentResponse.content)
+            saveMessage(session, MessageRole.ASSISTANT, responseContent)
             
             // Update session activity
             session.lastActiveAt = LocalDateTime.now()
             chatSessionRepository.save(session)
             
             return ChatResponse(
-                response = agentResponse.content,
+                response = responseContent,
                 sessionId = sessionId,
-                metadata = agentResponse.metadata + mapOf("history_size" to chatHistory.size)
+                metadata = mapOf("history_size" to chatHistory.size)
             )
         } catch (e: Exception) {
-            logger.error(e) { "Error in MainAgent: ${e.message}" }
+            logger.error(e) { "Error in JarvisMainAgent: ${e.message}" }
             throw e
         }
     }
@@ -79,10 +79,15 @@ class JarvisService(
     }
     
     private fun saveMessage(session: ChatSession, role: MessageRole, content: String) {
+        val metadata = objectMapper.createObjectNode().apply {
+            put("sessionId", session.id)
+        }
+        
         val message = ChatMessage(
             session = session,
             role = role,
-            content = content
+            content = content,
+            metadata = metadata
         )
         chatMessageRepository.save(message)
     }

@@ -109,7 +109,10 @@ enum class ObsidianAction {
     
     // Utility operations
     BACKUP_VAULT,
-    VALIDATE_LINKS
+    VALIDATE_LINKS,
+    
+    // User interaction
+    ASK_USER
 }
 
 /**

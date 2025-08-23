@@ -1,16 +1,8 @@
 package com.jarvis.agent
 
-import com.jarvis.agent.contract.Agent
-import com.jarvis.agent.contract.AgentResponse
-import com.jarvis.agent.contract.AgentStatus
-import com.jarvis.agent.contract.KnowledgeManageable
-import com.jarvis.agent.contract.SourceStatus
-import com.jarvis.agent.memory.HybridMemoryClassifier
-import com.jarvis.agent.reasoning.ObsidianReasoningEngine
+import com.jarvis.agent.contract.SubAgent
 import com.jarvis.dto.*
 import com.jarvis.entity.ChatMessage
-import com.jarvis.service.knowledge.contract.KnowledgeItem
-import com.jarvis.service.knowledge.ObsidianKnowledgeSource
 import com.jarvis.service.knowledge.ObsidianVaultManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -24,215 +16,113 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 
 /**
- * Specialized agent for Obsidian vault knowledge management
- * This agent owns all interactions with Obsidian vault
- * Uses ObsidianKnowledgeSource as its internal tool
+ * Obsidian Sub-Agent - focused specialist for Obsidian vault operations
+ * Follows Claude Code principles: single purpose, clear scope, direct execution
  */
 @Component
 class ObsidianAgent(
     @Value("\${jarvis.obsidian.vault-path}")
     private val defaultVaultPath: String,
-    private val memoryClassifier: HybridMemoryClassifier,
     private val vaultManager: ObsidianVaultManager,
-    private val chatModel: AnthropicChatModel,
-    private val reasoningEngine: ObsidianReasoningEngine
-) : Agent, KnowledgeManageable {
+    private val chatModel: AnthropicChatModel
+) : SubAgent {
     
     private val logger = KotlinLogging.logger {}
-    private var lastSyncTime: Long? = null
-    private var totalMemoriesFormed: Int = 0
     
-    private val obsidianTool = ObsidianKnowledgeSource(defaultVaultPath)
+    // Sub-Agent configuration (Claude Code style)
+    override val name = "obsidian-manager"
     
-    override val name = "ObsidianAgent"
-    
-    override val capabilities = """
-        Управление Obsidian Vault:
-        - Чтение заметок по пути
-        - Поиск заметок с семантической релевантностью
-        - Создание новых заметок с frontmatter и тегами
-        - Обновление заметок (содержимое, заголовок, теги, метаданные)
-        - Удаление заметок и папок
-        - Перемещение/переименование заметок
-        - Список заметок по папкам и тегам
-        - Получение всех тегов vault
-        - Поиск обратных ссылок
-        - Создание и управление структурой папок
-        
-        Поддерживает Obsidian markdown формат с YAML frontmatter, wikilinks [[ссылка]], и hashtags #тег
+    override val description = """
+        Expert at managing Obsidian vault operations: creating, reading, updating, deleting notes.
+        Handles markdown files, wikilinks, tags, and vault organization.
+        Use for any Obsidian-related tasks like "create note", "read file", "search notes".
     """.trimIndent()
+    
+    override val tools = listOf(
+        "obsidian_read", "obsidian_create", "obsidian_search", 
+        "obsidian_update", "obsidian_delete", "obsidian_list"
+    )
 
-    override fun canHandle(query: String, chatHistory: List<ChatMessage>): Boolean {
-        // AI модель решает может ли ObsidianAgent обработать запрос
-        return runBlocking {
-            try {
-                val systemPrompt = """
-                Определи, может ли ObsidianAgent обработать этот запрос.
-                
-                ObsidianAgent специализируется на:
-                - Работе с заметками и файлами в Obsidian vault
-                - Создании, чтении, обновлении, удалении заметок
-                - Поиске по заметкам и тегам
-                - Управлении markdown файлами
-                - Wikilinks и hashtags
-                
-                Отвечай ТОЛЬКО "true" или "false".
-                """.trimIndent()
-                
-                val response = chatModel.call(Prompt(listOf(
-                    SystemMessage(systemPrompt),
-                    UserMessage(query)
-                )))
-                val canHandle = response.result.output.content.trim().lowercase() == "true"
-                logger.debug { "ObsidianAgent.canHandle('$query'): $canHandle (AI decision)" }
-                canHandle
-            } catch (e: Exception) {
-                logger.error(e) { "Error in AI canHandle decision, defaulting to false" }
-                false
-            }
+    override suspend fun canHandle(query: String, chatHistory: List<ChatMessage>): Boolean {
+        // AI-based decision (Claude Code principles - no hardcoded keywords!)
+        val systemPrompt = """
+        Определи, нужен ли Obsidian агент для этого запроса.
+        
+        Obsidian агент умеет:
+        - Создавать/читать/обновлять заметки в markdown
+        - Искать в vault по файлам
+        - Работать с тегами и папками
+        - Управлять структурой vault
+        
+        Отвечай только: true или false
+        """.trimIndent()
+        
+        val contextMessages = if (chatHistory.isNotEmpty()) {
+            "Контекст предыдущих сообщений:\n" + 
+            chatHistory.takeLast(3).joinToString("\n") { "${it.role}: ${it.content}" } + "\n\n"
+        } else ""
+        
+        val userPrompt = "${contextMessages}Запрос: $query"
+        
+        return try {
+            val prompt = Prompt(listOf(
+                SystemMessage(systemPrompt),
+                UserMessage(userPrompt)
+            ))
+            
+            val response = chatModel.call(prompt).result.output.content.trim().lowercase()
+            val canHandle = response.contains("true")
+            
+            logger.debug { "ObsidianAgent.canHandle('$query'): $canHandle (AI decision: '$response')" }
+            canHandle
+            
+        } catch (e: Exception) {
+            logger.error(e) { "Error in AI-based canHandle, defaulting to false" }
+            false
         }
     }
 
-    override suspend fun handle(query: String, chatHistory: List<ChatMessage>): AgentResponse = withContext(Dispatchers.IO) {
-        val startTime = System.currentTimeMillis()
-        
+    override suspend fun handle(query: String, chatHistory: List<ChatMessage>): String = withContext(Dispatchers.IO) {
         try {
-            logger.info { "ObsidianAgent processing query: '$query'" }
+            logger.info { "ObsidianAgent executing: '$query'" }
             
-            // AI определяет нужен ли reasoning для сложных запросов
-            val needsReasoning = isComplexQuery(query)
+            // Получаем sessionId из metadata последнего (самого свежего) сообщения
+            val lastMessage = chatHistory.lastOrNull()
+            val sessionId = lastMessage?.metadata?.get("sessionId")?.asText()
+            logger.debug { "ObsidianAgent sessionId: chatHistory.size=${chatHistory.size}, lastMessage=${lastMessage?.content?.take(50)}, metadata=${lastMessage?.metadata}, sessionId=$sessionId" }
             
-            val result = if (needsReasoning) {
-                logger.info { "Using reasoning engine for complex query" }
-                handleWithReasoning(query, chatHistory)
-            } else {
-                logger.debug { "Using simple parsing for direct query" }
-                val simpleResult = handleWithSimpleParsing(query)
-                
-                // Если simple режим упал с ошибкой - пробуем reasoning
-                if (isErrorResult(simpleResult)) {
-                    logger.warn { "Simple parsing failed, falling back to reasoning: ${simpleResult.content}" }
-                    val reasoningResult = handleWithReasoning(query, chatHistory)
-                    // Добавляем информацию о fallback
-                    reasoningResult.copy(
-                        metadata = reasoningResult.metadata + mapOf(
-                            "fallback_from" to "simple",
-                            "simple_error" to simpleResult.content
-                        )
-                    )
-                } else {
-                    simpleResult
-                }
-            }
-            
-            val processingTime = System.currentTimeMillis() - startTime
-            logger.info { "ObsidianAgent completed in ${processingTime}ms, result length: ${result.content.length}" }
-            
-            result.copy(processingTimeMs = processingTime)
+            // Простое выполнение команды с отображением мыслей LLM
+            return@withContext handleWithSimpleParsing(query, chatHistory, sessionId)
             
         } catch (e: Exception) {
             logger.error(e) { "ObsidianAgent error processing query: '$query'" }
-            val processingTime = System.currentTimeMillis() - startTime
-            
-            AgentResponse(
-                content = "Ошибка при обработке запроса к Obsidian: ${e.message}",
-                metadata = mapOf("error" to (e::class.simpleName ?: "Unknown")),
-                confidence = 0.0,
-                processingTimeMs = processingTime
-            )
+            "❌ Ошибка при работе с Obsidian: ${e.message}"
         }
     }
     
     /**
      * Определяет является ли результат ошибкой
      */
-    private fun isErrorResult(response: AgentResponse): Boolean {
+    private fun isErrorResult(response: String): Boolean {
         val errorKeywords = listOf(
             "не найден", "not found", "ошибка", "error", 
             "не указан", "не удалось", "failed", "cannot find"
         )
         
-        val content = response.content.lowercase()
+        val content = response.lowercase()
         return errorKeywords.any { keyword -> content.contains(keyword) }
     }
     
-    /**
-     * AI определяет нужен ли reasoning для запроса
-     */
-    private suspend fun isComplexQuery(query: String): Boolean {
-        val prompt = """
-        Определи, нужна ли цепочка действий (reasoning) для выполнения запроса.
-        
-        ПРОСТЫЕ запросы (one-shot):
-        - создай заметку
-        - прочитай заметку X  
-        - найди заметки про Y
-        - удали заметку X (если путь точный)
-        - список заметок
-        
-        СЛОЖНЫЕ запросы (multi-step reasoning):
-        - найди файл и удали его
-        - если есть заметка X, то прочитай её
-        - удали файл по неточному пути (нужен поиск)
-        - переименуй/перемести файл
-        - несколько действий в одном запросе
-        - условная логика (если...то...)
-        
-        Отвечай ТОЛЬКО: "simple" или "complex"
-        
-        Запрос: $query
-        """.trimIndent()
-        
-        return try {
-            val response = chatModel.call(Prompt(listOf(
-                SystemMessage("Ты классификатор сложности запросов."),
-                UserMessage(prompt)
-            )))
-            
-            val result = response.result.output.content.trim().lowercase()
-            val isComplex = result.contains("complex")
-            
-            logger.debug { "Query complexity for '$query': $result -> isComplex=$isComplex" }
-            isComplex
-            
-        } catch (e: Exception) {
-            logger.error(e) { "Error determining query complexity, defaulting to simple" }
-            false // fallback to simple
-        }
-    }
+    
     
     /**
-     * Обработка сложных запросов через reasoning
+     * Простая обработка команд (Claude Code style)
      */
-    private suspend fun handleWithReasoning(query: String, chatHistory: List<ChatMessage> = emptyList()): AgentResponse {
-        val reasoningContext = reasoningEngine.reason(query, chatHistory)
-        
-        return AgentResponse(
-            content = reasoningContext.finalResult ?: "Задача не была завершена",
-            metadata = mapOf(
-                "mode" to "reasoning",
-                "steps_count" to reasoningContext.steps.size,
-                "reasoning_steps" to reasoningContext.steps.map { 
-                    mapOf(
-                        "thought" to it.thought,
-                        "action" to it.action?.tool,
-                        "observation" to it.observation
-                    )
-                },
-                "vault_path" to defaultVaultPath
-            ),
-            confidence = if (reasoningContext.isCompleted) 0.9 else 0.3
-        )
-    }
-    
-    /**
-     * Обработка простых запросов через old parsing
-     */
-    private suspend fun handleWithSimpleParsing(query: String): AgentResponse {
-        val action = parseQuery(query)
+    private suspend fun handleWithSimpleParsing(query: String, chatHistory: List<ChatMessage>, sessionId: String? = null): String {
+        val action = parseQuery(query, chatHistory, sessionId)
         logger.debug { "Parsed action: ${action.type}, parameters: ${action.parameters}" }
         
-        val result = when (action.type) {
+        return when (action.type) {
             ObsidianAction.READ_NOTE -> handleReadNote(action)
             ObsidianAction.SEARCH_VAULT -> handleSearchVault(action)
             ObsidianAction.LIST_NOTES -> handleListNotes(action)
@@ -244,270 +134,141 @@ class ObsidianAgent(
             ObsidianAction.MOVE_NOTE -> handleMoveNote(action)
             ObsidianAction.CREATE_FOLDER -> handleCreateFolder(action)
             ObsidianAction.LIST_FOLDERS -> handleListFolders(action)
-            else -> "Операция не поддерживается: ${action.type}"
+            ObsidianAction.ASK_USER -> handleAskUser(action)
+            else -> "❌ Операция не поддерживается: ${action.type}"
         }
-        
-        return AgentResponse(
-            content = result,
-            metadata = mapOf(
-                "mode" to "simple",
-                "action" to action.type,
-                "parameters" to action.parameters,
-                "vault_path" to defaultVaultPath
-            ),
-            confidence = calculateConfidence(query)
-        )
     }
 
-    override suspend fun getStatus(): AgentStatus {
+    override suspend fun isAvailable(): Boolean {
         return try {
-            logger.debug { "Checking ObsidianAgent status..." }
-            // Проверяем доступность vault'а
+            logger.debug { "Checking ObsidianAgent availability..." }
             vaultManager.listFolders()
-            logger.debug { "ObsidianAgent status: AVAILABLE" }
-            AgentStatus.AVAILABLE
+            true
         } catch (e: Exception) {
-            logger.error(e) { "ObsidianAgent status check failed" }
-            AgentStatus.ERROR
-        }
-    }
-    override suspend fun formMemories(config: Map<String, Any>): List<KnowledgeItem> {
-        logger.info { "ObsidianAgent: Starting memory formation process" }
-        
-        val memories = obsidianTool.sync(config)
-        
-        // Agent processes and validates the memories
-        val processedMemories = mutableListOf<KnowledgeItem>()
-        for (memory in memories) {
-            if (isWorthRemembering(memory.content)) {
-                val processed = processMemory(memory)
-                processedMemories.add(processed)
-            }
-        }
-        
-        totalMemoriesFormed += processedMemories.size
-        lastSyncTime = System.currentTimeMillis()
-        
-        logger.info { "ObsidianAgent: Formed ${processedMemories.size} memories from ${memories.size} raw items" }
-        return processedMemories
-    }
-    
-    /**
-     * Agent's high-level processing of raw memory into structured knowledge
-     * Uses advanced ML-based classification system
-     */
-    private suspend fun processMemory(rawMemory: KnowledgeItem): KnowledgeItem {
-        val enhancedMetadata = rawMemory.metadata?.toMutableMap() ?: mutableMapOf()
-        
-        // Use hybrid classifier for intelligent memory type detection
-        val memoryType = memoryClassifier.classify(rawMemory.content, rawMemory.metadata)
-        
-        // Add agent's analysis  
-        enhancedMetadata["processedBy"] = this::class.simpleName ?: "ObsidianAgent"
-        enhancedMetadata["memoryType"] = memoryType.primary
-        enhancedMetadata["memorySubType"] = memoryType.secondary ?: "unknown"
-        enhancedMetadata["typeConfidence"] = memoryType.confidence
-        enhancedMetadata["classificationAttributes"] = memoryType.attributes
-        enhancedMetadata["importance"] = assessImportance(rawMemory.content, memoryType.primary)
-        enhancedMetadata["processingTimestamp"] = System.currentTimeMillis()
-        
-        // Add semantic enrichment
-        enhancedMetadata["contentAnalysis"] = analyzeContent(rawMemory.content)
-        
-        return rawMemory.copy(
-            metadata = enhancedMetadata
-        )
-    }
-    
-    /**
-     * Enhanced importance assessment based on content and type
-     */
-    private fun assessImportance(content: String, memoryType: String): String {
-        var score = 0
-        
-        // Content-based scoring
-        when {
-            content.contains("IMPORTANT", ignoreCase = true) || 
-            content.contains("URGENT", ignoreCase = true) || 
-            content.contains("CRITICAL", ignoreCase = true) -> score += 3
-            
-            content.contains("TODO", ignoreCase = true) || 
-            content.contains("FIXME", ignoreCase = true) -> score += 2
-            
-            content.length > 1000 -> score += 2
-            content.length > 500 -> score += 1
-        }
-        
-        // Type-based scoring
-        when (memoryType) {
-            "meeting" -> score += 2 // Meetings are generally important
-            "project" -> score += 2 // Project docs are important
-            "task" -> score += 1 // Tasks have moderate importance
-            "code" -> score += 1 // Code snippets are useful
-            "documentation" -> score += 1 // Docs are reference material
-        }
-        
-        // Structure-based scoring
-        val lines = content.lines()
-        if (lines.any { it.trim().startsWith("#") }) score += 1 // Has headings
-        if (lines.any { it.contains("http") }) score += 1 // Has references
-        
-        return when {
-            score >= 5 -> "high"
-            score >= 3 -> "medium"
-            else -> "low"
+            logger.error(e) { "ObsidianAgent availability check failed" }
+            false
         }
     }
     
-    /**
-     * Analyzes content structure and extracts key features
-     */
-    private fun analyzeContent(content: String): Map<String, Any> {
-        val lines = content.lines()
-        
-        return mapOf(
-            "wordCount" to content.split("\\s+".toRegex()).size,
-            "lineCount" to lines.size,
-            "hasHeadings" to lines.any { it.trim().startsWith("#") },
-            "hasLinks" to (content.contains("http") || (content.contains("[") && content.contains("]"))),
-            "hasCodeBlocks" to content.contains("```"),
-            "hasLists" to lines.any { it.trim().startsWith("-") || it.trim().startsWith("*") },
-            "hasCheckboxes" to lines.any { it.contains("[ ]") || it.contains("[x]") },
-            "language" to detectLanguage(content),
-            "extractedKeywords" to extractKeywords(content, 5)
-        )
-    }
     
-    private fun detectLanguage(content: String): String {
-        // Simple language detection based on common patterns
-        return when {
-            content.contains(Regex("[а-яё]", RegexOption.IGNORE_CASE)) -> "russian"
-            content.contains(Regex("[a-z]", RegexOption.IGNORE_CASE)) -> "english"
-            else -> "unknown"
-        }
-    }
     
-    private fun extractKeywords(content: String, limit: Int): List<String> {
-        // Simple keyword extraction (in production, use TF-IDF or more sophisticated methods)
-        val stopWords = setOf("the", "is", "at", "which", "on", "and", "a", "an", "to", "in", "for", "of", "with", "by")
-        
-        return content
-            .lowercase()
-            .split(Regex("[^a-zа-яё]+"))
-            .filter { it.length > 3 && !stopWords.contains(it) }
-            .groupingBy { it }
-            .eachCount()
-            .toList()
-            .sortedByDescending { it.second }
-            .take(limit)
-            .map { it.first }
-    }
     
-    /**
-     * Agent's criteria for what's worth remembering
-     */
-    private fun isWorthRemembering(content: String): Boolean {
-        if (content.isBlank() || content.length < 20) return false
-        
-        // Skip empty templates
-        val lines = content.lines()
-        if (lines.all { it.startsWith("#") || it.isBlank() }) return false
-        
-        // Skip daily notes that are just task lists
-        if (content.contains("## Tasks") && content.length < 100) return false
-        
-        return true
-    }
     
-    override fun canAccessSource(): Boolean {
-        return obsidianTool.isAvailable()
-    }
     
-    override fun getSourceStatus(): SourceStatus {
-        val toolStatus = obsidianTool.getStatus()
-        val health = when {
-            !toolStatus.isActive -> "vault_not_found"
-            lastSyncTime == null -> "never_synced"
-            else -> "healthy"
-        }
-        
-        return SourceStatus(
-            sourceType = "obsidian",
-            isAccessible = toolStatus.isActive,
-            lastSync = lastSyncTime,
-            itemCount = totalMemoriesFormed,
-            health = health
-        )
-    }
     
-    private suspend fun parseQuery(query: String): ParsedQuery {
+    
+    
+    private suspend fun parseQuery(query: String, chatHistory: List<ChatMessage>, sessionId: String? = null): ParsedQuery {
         logger.debug { "ObsidianAgent parsing query with AI model: '$query'" }
         
+        // Убрано сложное управление контекстом - Claude Code принципы
+        // Простой промпт (Claude Code принципы)
         val systemPrompt = """
-        Ты эксперт по анализу запросов для работы с Obsidian vault. Точно определи операцию и извлеки ВСЕ необходимые параметры.
+        Обработай запрос к Obsidian vault.
         
         ОПЕРАЦИИ:
         - READ_NOTE: чтение заметки (нужен path)
-        - SEARCH_VAULT: поиск заметок (нужен query, опционально tags, folder)
-        - LIST_NOTES: список заметок (опционально folder)
-        - GET_TAGS: все теги vault (параметры не нужны)
-        - GET_BACKLINKS: обратные ссылки (нужен path)
-        - CREATE_NOTE: создание заметки (нужны path И title, опционально content, tags)
-        - UPDATE_NOTE: обновление заметки (нужен path, опционально content, title, tags)
-        - DELETE_NOTE: удаление заметки (нужен path)
-        - MOVE_NOTE: перемещение заметки (нужны oldPath и newPath)
-        - CREATE_FOLDER: создание папки (нужен folder)
-        - LIST_FOLDERS: список папок (опционально access_query для вопросов о доступе)
+        - SEARCH_VAULT: поиск заметок (нужен query)
+        - CREATE_NOTE: создание заметки (нужны path И title)
+        - LIST_NOTES: список заметок
+        - GET_TAGS: все теги vault
+        - ASK_USER: когда нужна дополнительная информация
         
-        КРИТИЧЕСКИЕ ПРАВИЛА:
-        1. Для CREATE_NOTE ОБЯЗАТЕЛЬНО нужны И path И title
-        2. Если path не указан, создай его из title: "title.md"
-        3. Если title не указан, извлеки из path: "file.md" → "file"
-        4. Команды "list", "show", "список" в папке = LIST_NOTES, НЕ SEARCH_VAULT
-        5. Для поиска в конкретной папке используй folder, а не query
+        ПРАВИЛА:
+        1. Если нет имени/названия - используй ASK_USER
+        2. НЕ придумывай данные
         
-        ПРИМЕРЫ ПРАВИЛЬНОГО РАЗБОРА:
-        "создай заметку test.md" → {"action": "CREATE_NOTE", "parameters": {"path": "test.md", "title": "test"}}
-        "создай заметку с названием Test" → {"action": "CREATE_NOTE", "parameters": {"path": "Test.md", "title": "Test"}}
-        "show all notes in Projects" → {"action": "LIST_NOTES", "parameters": {"folder": "Projects"}}
-        "найди заметки про AI" → {"action": "SEARCH_VAULT", "parameters": {"query": "AI"}}
+        Отвечай: JSON {"action": "...", "parameters": {...}}
+        """.trimIndent()
         
-        JSON ФОРМАТ (отвечай ТОЛЬКО JSON):
-        {
-          "action": "ACTION_NAME",
-          "parameters": {
-            "path": "путь к файлу",
-            "title": "заголовок заметки", 
-            "content": "содержимое",
-            "tags": ["тег1", "тег2"],
-            "folder": "имя папки",
-            "query": "поисковый запрос",
-            "oldPath": "старый путь",
-            "newPath": "новый путь",
-            "access_query": true
-          }
+        val contextMessages = if (chatHistory.isNotEmpty()) {
+            "История диалога:\n" + 
+            chatHistory.takeLast(5).joinToString("\n") { "${it.role}: ${it.content}" } + "\n\n"
+        } else ""
+        
+        // Проверяем, является ли это ответом на вопрос из предыдущего сообщения
+        val isResponseToQuestion = chatHistory.isNotEmpty() && 
+            chatHistory.lastOrNull()?.role == com.jarvis.entity.MessageRole.ASSISTANT &&
+            (chatHistory.lastOrNull()?.content?.contains("?") == true ||
+             chatHistory.lastOrNull()?.content?.contains("укажите") == true ||
+             chatHistory.lastOrNull()?.content?.contains("Пожалуйста") == true)
+        
+        val userPrompt = if (isResponseToQuestion) {
+            """
+            ${contextMessages}КОНТЕКСТ: Пользователь отвечает на мой предыдущий вопрос.
+            Последний мой вопрос был: "${chatHistory.lastOrNull()?.content}"
+            Ответ пользователя: "$query"
+            
+            ВАЖНО: 
+            1. Интерпретируй "$query" как ответ на мой вопрос
+            2. СОБЕРИ ВСЕ ПАРАМЕТРЫ из истории диалога (имена, пути, etc)
+            3. Если у тебя есть ВСЕ нужные данные - ВЫПОЛНЯЙ операцию (например CREATE_NOTE)
+            4. Если все еще чего-то не хватает - только тогда ASK_USER
+            
+            Проанализируй всю историю и определи что нужно сделать.
+            """.trimIndent()
+        } else {
+            """
+            ${contextMessages}Новый запрос пользователя: $query
+            
+            Определи операцию и извлеки параметры.
+            """.trimIndent()
         }
-        """.trimIndent()
-        
-        val userPrompt = """
-        Запрос пользователя: $query
-        
-        Определи операцию и извлеки параметры.
-        """.trimIndent()
         
         return try {
+            // Отправляем промпт через SSE  
+            sessionId?.let { 
+                com.jarvis.controller.ThinkingController.sendThought(it, "🤔 Анализирую: '$query'", "obsidian_thinking")
+                com.jarvis.controller.ThinkingController.sendThought(it, "💭 Промпт: ${userPrompt.take(100)}...", "obsidian_prompt") 
+            }
+            
             val prompt = Prompt(listOf(
                 SystemMessage(systemPrompt),
                 UserMessage(userPrompt)
             ))
             
             val response = chatModel.call(prompt)
-            val jsonResponse = response.result.output.content.trim()
+            val fullResponse = response.result.output.content.trim()
             
-            logger.debug { "AI model response: $jsonResponse" }
+            // Извлекаем рассуждение и JSON
+            val jsonStartIndex = fullResponse.indexOf("{")
+            val (reasoning, jsonPart) = if (jsonStartIndex > 0) {
+                val reasoningPart = fullResponse.substring(0, jsonStartIndex).trim()
+                val jsonPart = fullResponse.substring(jsonStartIndex).trim()
+                reasoningPart to jsonPart
+            } else {
+                "" to fullResponse
+            }
             
-            // Парсим JSON ответ
-            parseAiResponse(jsonResponse)
+            // Отправляем рассуждение модели через SSE (если есть sessionId)
+            if (reasoning.isNotEmpty() && sessionId != null) {
+                com.jarvis.controller.ThinkingController.sendThought(sessionId, "💭 $reasoning", "obsidian_reasoning")
+            }
+            
+            // Парсим JSON и отправляем действие
+            val parsedAction = parseAiResponse(jsonPart)
+            sessionId?.let { 
+                val readableThought = when (parsedAction.type) {
+                    ObsidianAction.CREATE_NOTE -> "📝 Создаю заметку: ${parsedAction.parameters["title"] ?: parsedAction.parameters["path"]}"
+                    ObsidianAction.SEARCH_VAULT -> "🔍 Ищу в vault: ${parsedAction.parameters["query"]}"
+                    ObsidianAction.READ_NOTE -> "📖 Читаю заметку: ${parsedAction.parameters["path"]}"
+                    ObsidianAction.LIST_NOTES -> "📋 Получаю список заметок"
+                    ObsidianAction.GET_TAGS -> "🏷️ Загружаю все теги"
+                    ObsidianAction.ASK_USER -> "❓ Нужна дополнительная информация от пользователя"
+                    else -> "❓ Выполняю действие: ${parsedAction.type}"
+                }
+                com.jarvis.controller.ThinkingController.sendThought(it, readableThought, "obsidian_action")
+            }
+            
+            logger.debug { "AI model response: $fullResponse" }
+            
+            // Отправляем полное AI рассуждение пользователю через SSE
+            sessionId?.let {
+                com.jarvis.controller.ThinkingController.sendThought(it, "🤖 $fullResponse", "ai_full_response")
+            }
+            
+            // Возвращаем уже распарсенное действие
+            parsedAction
             
         } catch (e: Exception) {
             logger.error(e) { "Error in AI-based query parsing, falling back to search" }
@@ -539,6 +300,7 @@ class ObsidianAgent(
             extractJsonParameter(jsonResponse, "query")?.let { parameters["query"] = it }
             extractJsonParameter(jsonResponse, "oldPath")?.let { parameters["oldPath"] = it }
             extractJsonParameter(jsonResponse, "newPath")?.let { parameters["newPath"] = it }
+            extractJsonParameter(jsonResponse, "question")?.let { parameters["question"] = it }
             
             // Обрабатываем теги как массив
             extractJsonArray(jsonResponse, "tags")?.let { tags ->
@@ -652,7 +414,7 @@ class ObsidianAgent(
             is ObsidianResult.Success<*> -> {
                 val note = result.data as MarkdownNote
                 logger.info { "Note created successfully: ${note.path}" }
-                "Заметка создана: **${note.title}** (${note.path})\n\nСодержимое:\n${note.content}"
+                "✅ Заметка создана: **${note.title}**"
             }
             is ObsidianResult.Error -> {
                 logger.warn { "Failed to create note: ${result.message}" }
@@ -675,7 +437,7 @@ class ObsidianAgent(
         return when (val result = vaultManager.updateNote(request)) {
             is ObsidianResult.Success<*> -> {
                 val note = result.data as MarkdownNote
-                "Заметка обновлена: **${note.title}** (${note.path})"
+                "✅ Заметка обновлена: **${note.title}**"
             }
             is ObsidianResult.Error -> result.message
         }
@@ -686,7 +448,7 @@ class ObsidianAgent(
             ?: return "Не указан путь к заметке для удаления"
         
         return when (val result = vaultManager.deleteNote(path)) {
-            is ObsidianResult.Success<*> -> "Заметка удалена: $path"
+            is ObsidianResult.Success<*> -> "🗑️ Заметка удалена: $path"
             is ObsidianResult.Error -> result.message
         }
     }
@@ -701,7 +463,7 @@ class ObsidianAgent(
         
         return when (val result = vaultManager.moveNote(request)) {
             is ObsidianResult.Success<*> -> {
-                "Заметка перемещена: $oldPath → $newPath"
+                "📁 Заметка перемещена: $oldPath → $newPath"
             }
             is ObsidianResult.Error -> result.message
         }
@@ -751,7 +513,7 @@ class ObsidianAgent(
             ?: return "Не указано имя папки"
         
         return when (val result = vaultManager.createFolder(folder)) {
-            is ObsidianResult.Success<*> -> "Папка создана: $folder"
+            is ObsidianResult.Success<*> -> "📁 Папка создана: $folder"
             is ObsidianResult.Error -> result.message
         }
     }
@@ -941,6 +703,11 @@ class ObsidianAgent(
             queryLower.contains("#") && queryLower.matches(Regex(".*#\\w+.*")) -> 0.7
             else -> 0.5
         }
+    }
+    
+    private fun handleAskUser(action: ParsedQuery): String {
+        val question = action.parameters["question"] as? String ?: "Нужна дополнительная информация"
+        return "❓ $question"
     }
 }
 

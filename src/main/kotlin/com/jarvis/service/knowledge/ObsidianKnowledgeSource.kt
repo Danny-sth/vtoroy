@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.jarvis.service.knowledge.contract.KnowledgeItem
 import com.jarvis.service.knowledge.contract.KnowledgeSource
-import com.jarvis.service.knowledge.contract.SourceStatus
+import com.jarvis.service.knowledge.contract.KnowledgeSourceStatus
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.stereotype.Component
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
@@ -18,21 +20,24 @@ import kotlin.io.path.name
 import kotlin.io.path.pathString
 
 /**
- * Internal tool for ObsidianAgent to work with Obsidian vault
- * NOT a Spring component - only ObsidianAgent can create and use this
+ * Obsidian Knowledge Source - реализует интерфейс источника знаний для Obsidian
+ * Аналог MCP Server для Obsidian в архитектуре Claude Code
  */
+@Component
 class ObsidianKnowledgeSource(
-    private val defaultVaultPath: String
+    @Value("\${jarvis.obsidian.vault-path}")
+    private val defaultVaultPath: String,
+    private val vaultManager: ObsidianVaultManager
 ) : KnowledgeSource {
     
     private val logger = KotlinLogging.logger {}
     private val yamlMapper = ObjectMapper(YAMLFactory())
     
     override val sourceId = "obsidian"
-    override val sourceName = "Obsidian Vault"
+    override val displayName = "Obsidian Vault"
     
-    override suspend fun sync(config: Map<String, Any>): List<KnowledgeItem> = withContext(Dispatchers.IO) {
-        val vaultPath = config["vaultPath"] as? String ?: defaultVaultPath
+    override suspend fun syncData(): List<KnowledgeItem> = withContext(Dispatchers.IO) {
+        val vaultPath = defaultVaultPath
         val path = Paths.get(vaultPath)
         
         if (!Files.exists(path)) {
@@ -56,7 +61,7 @@ class ObsidianKnowledgeSource(
         items
     }
     
-    override fun isAvailable(): Boolean {
+    override suspend fun isAvailable(): Boolean {
         return try {
             val path = Paths.get(defaultVaultPath)
             Files.exists(path) && Files.isDirectory(path)
@@ -66,11 +71,11 @@ class ObsidianKnowledgeSource(
         }
     }
     
-    override fun getStatus(): SourceStatus {
+    override suspend fun getStatus(): KnowledgeSourceStatus {
         return try {
             val path = Paths.get(defaultVaultPath)
             if (!Files.exists(path)) {
-                return SourceStatus(
+                return KnowledgeSourceStatus(
                     sourceId = sourceId,
                     isActive = false,
                     errorMessage = "Vault path does not exist"
@@ -82,13 +87,13 @@ class ObsidianKnowledgeSource(
                 .count()
                 .toInt()
 
-            SourceStatus(
+            KnowledgeSourceStatus(
                 sourceId = sourceId,
                 isActive = true,
                 itemCount = fileCount
             )
         } catch (e: Exception) {
-            SourceStatus(
+            KnowledgeSourceStatus(
                 sourceId = sourceId,
                 isActive = false,
                 errorMessage = e.message
@@ -116,9 +121,13 @@ class ObsidianKnowledgeSource(
             id = id,
             title = filePath.fileName.name.removeSuffix(".md"),
             content = cleanedContent,
-            metadata = frontmatter?.plus(mapOf("path" to relativePath)),
-            tags = tags,
-            lastModified = Files.getLastModifiedTime(filePath).toMillis()
+            sourceId = sourceId,
+            sourcePath = relativePath,
+            lastModified = Files.getLastModifiedTime(filePath).toMillis(),
+            metadata = (frontmatter ?: emptyMap()) + mapOf(
+                "path" to relativePath,
+                "tags" to tags
+            )
         )
     }
     

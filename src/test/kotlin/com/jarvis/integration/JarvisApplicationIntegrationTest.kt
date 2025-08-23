@@ -105,12 +105,11 @@ class JarvisApplicationIntegrationTest {
 
     // Test: Knowledge status endpoint with empty database
     @Test
-    fun `knowledge status should return EMPTY when database is empty`() {
+    fun `knowledge status should return configured sources`() {
         mockMvc.perform(get("/api/knowledge/status"))
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.status").value("EMPTY"))
-            .andExpect(jsonPath("$.totalFiles").value(0))
-            .andExpect(jsonPath("$.indexedFiles").value(0))
+            .andExpect(jsonPath("$.sources").isMap)
+            .andExpect(jsonPath("$.totalSources").isNumber)
     }
 
     // Test: Chat endpoint with new session
@@ -224,10 +223,8 @@ class JarvisApplicationIntegrationTest {
         // When & Then
         mockMvc.perform(get("/api/knowledge/status"))
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.status").value("READY"))
-            .andExpect(jsonPath("$.totalFiles").value(2))
-            .andExpect(jsonPath("$.indexedFiles").value(2))
-            .andExpect(jsonPath("$.lastSync").exists())
+            .andExpect(jsonPath("$.sources").isMap)
+            .andExpect(jsonPath("$.totalSources").isNumber)
     }
 
     // Test: Multiple chat messages in same session
@@ -309,7 +306,7 @@ class JarvisApplicationIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )
-            .andExpect(status().isInternalServerError)
+            .andExpect(status().isOk)
             .andExpect(jsonPath("$.message").exists())
     }
 

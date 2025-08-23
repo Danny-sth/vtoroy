@@ -1,16 +1,12 @@
 package com.jarvis.service
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.jarvis.agent.contract.KnowledgeManageable
-import com.jarvis.agent.contract.SourceStatus
+import com.jarvis.service.knowledge.contract.KnowledgeSource
+import com.jarvis.service.knowledge.contract.KnowledgeSourceStatus
 import com.jarvis.service.knowledge.contract.KnowledgeItem
 import com.jarvis.repository.KnowledgeFileRepository
-import com.jarvis.dto.KnowledgeStatus
-import com.jarvis.dto.KnowledgeStatusResponse
 import com.jarvis.entity.KnowledgeFile
 import com.pgvector.PGvector
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.ai.embedding.EmbeddingModel
@@ -21,252 +17,153 @@ import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Service for managing knowledge through specialized agents
- * Each agent manages its own knowledge source and forms memories
+ * Knowledge Service - управляет источниками знаний и синхронизацией с векторной БД
+ * Аналог Claude Code MCP Server Manager
  */
 @Service
 class KnowledgeService(
     private val knowledgeFileRepository: KnowledgeFileRepository,
     @Qualifier("customEmbeddingModel") private val embeddingModel: EmbeddingModel,
-    private val objectMapper: ObjectMapper,
-    private val knowledgeAgents: List<KnowledgeManageable> // Auto-wired list of all knowledge agents
+    private val knowledgeSources: List<KnowledgeSource> // Auto-wired list of all knowledge sources
 ) {
     private val logger = KotlinLogging.logger {}
     
     // Cache for query embeddings - avoids recalculating identical queries
     private val queryEmbeddingCache = ConcurrentHashMap<String, FloatArray>()
     
-    /**
-     * Get all available knowledge agents and their status
-     */
-    fun getAvailableSources(): Map<String, SourceStatus> {
-        return knowledgeAgents.associate { agent ->
-            // Use agent class name as ID for now
-            val agentId = agent::class.simpleName?.removeSuffix("Agent")?.lowercase() ?: "unknown"
-            agentId to agent.getSourceStatus()
-        }
+    init {
+        logger.info { "KnowledgeService initialized with ${knowledgeSources.size} sources: ${knowledgeSources.map { it.sourceId }}" }
     }
     
     /**
-     * Sync knowledge through a specific agent
-     * @param sourceId The ID of the agent/source to sync
-     * @param config Agent-specific configuration
-     * @return Number of items synced
+     * Получает статусы всех источников знаний
      */
-    suspend fun syncSource(sourceId: String, config: Map<String, Any> = emptyMap()): Int = withContext(Dispatchers.IO) {
-        val agent = knowledgeAgents.find { 
-            val agentId = it::class.simpleName?.removeSuffix("Agent")?.lowercase() ?: "unknown"
-            agentId == sourceId
-        } ?: throw IllegalArgumentException("Unknown knowledge agent: $sourceId")
-        
-        logger.info { "Requesting agent ${agent::class.simpleName} to form memories" }
-        
-        if (!agent.canAccessSource()) {
-            throw IllegalStateException("Agent ${agent::class.simpleName} cannot access its source")
-        }
-        
-        val memories = agent.formMemories(config)
-        var processedCount = 0
-        
-        // Get current memory IDs from the source
-        val currentSourceIds = memories.map { it.id }.toSet()
-        
-        // Get existing records from database for this source
-        val existingRecords = knowledgeFileRepository.findBySource(sourceId)
-        val existingSourceIds = existingRecords.map { it.sourceId }.toSet()
-        
-        // Find records that no longer exist in source and should be deleted
-        val recordsToDelete = existingSourceIds - currentSourceIds
-        if (recordsToDelete.isNotEmpty()) {
-            logger.info { "Removing ${recordsToDelete.size} deleted files from database for source $sourceId" }
-            val recordsToDeleteEntities = existingRecords.filter { it.sourceId in recordsToDelete }
+    suspend fun getSourceStatuses(): Map<String, KnowledgeSourceStatus> {
+        return knowledgeSources.associate { source ->
             try {
-                // Use runBlocking to execute deletion in blocking context with transaction
-                runBlocking {
-                    deleteObsoleteRecords(recordsToDeleteEntities)
-                }
-                logger.info { "Successfully deleted ${recordsToDeleteEntities.size} obsolete records" }
-                recordsToDeleteEntities.forEach { record ->
-                    logger.debug { "Deleted record: ${record.filePath} (sourceId: ${record.sourceId})" }
-                }
+                source.sourceId to source.getStatus()
             } catch (e: Exception) {
-                logger.error(e) { "Error deleting obsolete records" }
+                logger.error(e) { "Failed to get status for source ${source.sourceId}" }
+                source.sourceId to KnowledgeSourceStatus(
+                    sourceId = source.sourceId,
+                    isActive = false,
+                    errorMessage = e.message
+                )
             }
         }
-        
-        // Process current memories
-        memories.forEach { memory ->
-            try {
-                processKnowledgeItem(sourceId, memory)
-                processedCount++
-            } catch (e: Exception) {
-                logger.error(e) { "Error processing memory ${memory.id} from agent ${agent::class.simpleName}" }
-            }
-        }
-        
-        logger.info { "Processed $processedCount memories from agent ${agent::class.simpleName}, deleted ${recordsToDelete.size} obsolete records" }
-        processedCount
     }
     
     /**
-     * Delete obsolete records in a transaction
-     * This method runs in blocking context to maintain transaction integrity
+     * Синхронизирует данные со всех доступных источников знаний
+     * Аналог Claude Code MCP sync
      */
-    @Transactional
-    fun deleteObsoleteRecords(records: List<KnowledgeFile>) {
-        if (records.isNotEmpty()) {
-            knowledgeFileRepository.deleteAll(records)
-            logger.debug { "Deleted ${records.size} obsolete records from database" }
-        }
-    }
-    
-    /**
-     * Sync Obsidian vault (backward compatibility)
-     */
-    
-    private fun processKnowledgeItem(sourceId: String, item: KnowledgeItem) {
-        val hash = calculateHash(item.content)
-        
-        // Check if item already exists and hasn't changed
-        val existing = knowledgeFileRepository.findBySourceAndSourceId(sourceId, item.id)
-        if (existing != null && existing.fileHash == hash) {
-            logger.debug { "Item unchanged, skipping: ${item.id}" }
-            return
-        }
-        
-        // Generate embedding
-        val embedding = generateEmbedding(item.content)
-        
-        // Prepare metadata with tags
-        val metadata = item.metadata?.toMutableMap() ?: mutableMapOf()
-        if (item.tags.isNotEmpty()) {
-            metadata["tags"] = item.tags
-        }
-        
-        // Create or update knowledge file
-        val knowledgeFile = existing?.copy(
-            content = item.content,
-            embedding = PGvector(embedding),
-            metadata = objectMapper.valueToTree(metadata),
-            fileHash = hash,
-            updatedAt = java.time.LocalDateTime.now()
-        ) ?: KnowledgeFile(
-            source = sourceId,
-            sourceId = item.id,
-            filePath = item.title, // Use title as file path for display
-            content = item.content,
-            embedding = PGvector(embedding),
-            metadata = objectMapper.valueToTree(metadata),
-            fileHash = hash
-        )
-        
-        knowledgeFileRepository.save(knowledgeFile)
-        logger.debug { "Processed item: ${item.id} from source: $sourceId" }
-    }
-    
-    private fun generateEmbedding(text: String, useCache: Boolean = false): FloatArray {
-        if (text.isBlank()) {
-            return FloatArray(384) { 0f }
-        }
-        
-        // Use cache only for queries (not for documents)
-        if (useCache) {
-            return queryEmbeddingCache.getOrPut(text) {
-                logger.debug { "Generating cached embedding for query: '${text.take(50)}...'" }
-                val startTime = System.currentTimeMillis()
-                val result = embeddingModel.embed(text)
-                val duration = System.currentTimeMillis() - startTime
-                logger.info { "Generated embedding in ${duration}ms" }
-                result
-            }
-        }
-        
-        return embeddingModel.embed(text)
-    }
-    
-    private fun calculateHash(content: String): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        val hash = digest.digest(content.toByteArray())
-        return hash.joinToString("") { "%02x".format(it) }
-    }
-    
-    /**
-     * Get overall knowledge base status
-     */
-    fun getStatus(): KnowledgeStatusResponse {
-        val totalFiles = knowledgeFileRepository.count()
-        val indexedFiles = knowledgeFileRepository.findAll()
-            .count { it.embedding != null }
-        
-        val lastFile = knowledgeFileRepository.findAll()
-            .maxByOrNull { it.updatedAt }
-        
-        val status = when {
-            totalFiles == 0L -> KnowledgeStatus.EMPTY
-            indexedFiles < totalFiles -> KnowledgeStatus.SYNCING
-            else -> KnowledgeStatus.READY
-        }
-        
-        return KnowledgeStatusResponse(
-            totalFiles = totalFiles,
-            indexedFiles = indexedFiles.toLong(),
-            lastSync = lastFile?.updatedAt,
-            status = status
-        )
-    }
-    
-    /**
-     * Get status for a specific agent
-     */
-    fun getSourceStatus(sourceId: String): Map<String, Any> {
-        val agent = knowledgeAgents.find { 
-            val agentId = it::class.simpleName?.removeSuffix("Agent")?.lowercase() ?: "unknown"
-            agentId == sourceId
-        } ?: throw IllegalArgumentException("Unknown knowledge agent: $sourceId")
-        
-        val itemCount = knowledgeFileRepository.countBySource(sourceId)
-        val lastItem = knowledgeFileRepository.findBySource(sourceId)
-            .maxByOrNull { it.updatedAt }
-        
-        return mapOf<String, Any>(
-            "sourceId" to sourceId,
-            "agentName" to (agent::class.simpleName ?: "Unknown"),
-            "status" to agent.getSourceStatus(),
-            "itemCount" to itemCount,
-            "lastSync" to (lastItem?.updatedAt?.toString() ?: "Never")
-        )
-    }
-    
-    /**
-     * Search knowledge across all sources or specific source
-     */
-    suspend fun searchKnowledge(
-        query: String, 
-        limit: Int = 5,
-        sourceFilter: String? = null
-    ): List<KnowledgeFile> = withContext(Dispatchers.IO) {
-        logger.debug { "Starting knowledge search for: '$query' (source: ${sourceFilter ?: "all"})" }
+    suspend fun syncAllSources(): Int {
         val startTime = System.currentTimeMillis()
         
-        val queryEmbedding = generateEmbedding(query, useCache = true)
-        val queryVector = PGvector(queryEmbedding)
+        val availableSources = knowledgeSources.filter { source ->
+            try {
+                source.isAvailable()
+            } catch (e: Exception) {
+                logger.warn(e) { "Source ${source.sourceId} availability check failed" }
+                false
+            }
+        }
         
-        val results = if (sourceFilter != null) {
-            knowledgeFileRepository.findSimilarDocumentsBySource(
-                queryVector.toString(), 
-                sourceFilter, 
-                limit
-            )
-        } else {
-            knowledgeFileRepository.findSimilarDocuments(queryVector.toString(), limit)
+        if (availableSources.isEmpty()) {
+            logger.warn { "No available knowledge sources found" }
+            return 0
+        }
+        
+        logger.info { "Starting sync with ${availableSources.size} sources" }
+        
+        var totalItemsIndexed = 0
+        
+        for (source in availableSources) {
+            try {
+                logger.info { "Syncing data from ${source.sourceId}" }
+                val items = source.syncData()
+                
+                val indexedCount = indexKnowledgeItems(items)
+                totalItemsIndexed += indexedCount
+                
+                logger.info { "Source ${source.sourceId} synced $indexedCount items" }
+            } catch (e: Exception) {
+                logger.error(e) { "Error syncing from source ${source.sourceId}" }
+            }
         }
         
         val duration = System.currentTimeMillis() - startTime
-        logger.info { 
-            "Knowledge search completed in ${duration}ms, found ${results.size} results" +
-            if (sourceFilter != null) " from source: $sourceFilter" else ""
+        logger.info { "Sync completed: $totalItemsIndexed items in ${duration}ms" }
+        
+        return totalItemsIndexed
+    }
+    
+    /**
+     * Индексирует элементы знаний в векторную БД
+     */
+    @Transactional
+    private suspend fun indexKnowledgeItems(items: List<KnowledgeItem>): Int = withContext(Dispatchers.IO) {
+        if (items.isEmpty()) return@withContext 0
+        
+        var indexedCount = 0
+        
+        for (item in items) {
+            try {
+                val checksum = generateChecksum(item.content)
+                
+                // Check if item already exists with same checksum
+                val existingFile = knowledgeFileRepository.findBySource(item.sourceId)
+                    .find { it.sourceId == item.id && it.fileHash == checksum }
+                
+                if (existingFile == null) {
+                    // Generate embedding
+                    val embedding = embeddingModel.embed(item.content)
+                    
+                    val knowledgeFile = KnowledgeFile(
+                        source = item.sourceId,
+                        sourceId = item.id,
+                        filePath = item.sourcePath,
+                        content = item.content,
+                        fileHash = checksum,
+                        embedding = PGvector(embedding)
+                    )
+                    
+                    knowledgeFileRepository.save(knowledgeFile)
+                    indexedCount++
+                } else {
+                    logger.debug { "Skipping existing item: ${item.sourcePath}" }
+                }
+            } catch (e: Exception) {
+                logger.error(e) { "Failed to index item: ${item.sourcePath}" }
+            }
         }
         
-        results
+        indexedCount
+    }
+    
+    /**
+     * Поиск в векторной базе знаний
+     */
+    suspend fun searchKnowledge(query: String, limit: Int = 10): List<KnowledgeFile> = withContext(Dispatchers.IO) {
+        try {
+            // Check cache first
+            val embedding = queryEmbeddingCache.getOrPut(generateChecksum(query)) {
+                embeddingModel.embed(query)
+            }
+            
+            knowledgeFileRepository.findSimilarDocuments(PGvector(embedding).toString(), limit)
+        } catch (e: Exception) {
+            logger.error(e) { "Error during knowledge search for query: $query" }
+            emptyList()
+        }
+    }
+    
+    /**
+     * Generates MD5 checksum for content
+     */
+    private fun generateChecksum(content: String): String {
+        val digest = MessageDigest.getInstance("MD5")
+        val hash = digest.digest(content.toByteArray())
+        return hash.joinToString("") { "%02x".format(it) }
     }
 }

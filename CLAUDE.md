@@ -4,36 +4,46 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Jarvis is a personal AI assistant built with Spring Boot 3.5.4 + Kotlin 1.9.25, featuring autonomous decision-making through Spring AI Routing Workflow Pattern. The system integrates with Anthropic Claude 3.5 Sonnet and includes a PostgreSQL knowledge base with vector search capabilities.
+Jarvis is a production-ready personal AI assistant built with **Clean Architecture** principles and implementing the **Claude Code SubAgent pattern**. The system features autonomous decision-making, real-time reasoning display, and complete Obsidian vault integration.
 
-## Essential Commands
+**Architecture**: Spring Boot 3.5.4 + Kotlin 1.9.25 + PostgreSQL 16 + pgvector  
+**Version**: 0.6.0 (Latest Release - 2025-08-23)  
+**Tests**: 63 test methods with 100% pass rate and 80% code coverage
 
-### Build and Test
+## 🚀 Essential Commands
+
+### Build and Development
 ```bash
 # Build project
 ./gradlew build
 
-# Run all tests (46 tests, must all pass)
+# Run all tests (63 tests, must all pass)
 ./gradlew test
 
-# Run tests with coverage report
+# Run with coverage report
 ./gradlew test jacocoTestReport
 
-# Run specific test categories
-./gradlew test --tests "*Test" --exclude-task integrationTest  # Unit tests only
-./gradlew test --tests "*IntegrationTest"                      # Integration tests only
-```
-
-### Development Server
-```bash
-# Start PostgreSQL database
+# Start with local database
 docker-compose -f .scripts/docker-compose.local.yml up -d postgres
-
-# Run application locally
 ./gradlew bootRun --args='--spring.profiles.active=local'
 
-# Run with custom Obsidian vault path
+# Custom Obsidian vault path
 OBSIDIAN_VAULT_PATH="/path/to/vault" ./gradlew bootRun --args='--spring.profiles.active=local'
+```
+
+### Production Deployment
+```bash
+# Quick rebuild (organized scripts)
+./.scripts/rebuild.sh
+
+# Deploy to production server
+./.scripts/deploy.sh [server-ip]
+
+# Production services
+docker-compose -f .scripts/docker-compose.prod.yml up -d
+
+# Stop all services
+./.scripts/stop.sh
 ```
 
 ### Database Operations
@@ -42,106 +52,121 @@ OBSIDIAN_VAULT_PATH="/path/to/vault" ./gradlew bootRun --args='--spring.profiles
 docker-compose -f .scripts/docker-compose.local.yml down postgres -v
 docker-compose -f .scripts/docker-compose.local.yml up -d postgres
 
-# View Flyway migration status
+# Check migrations
 ./gradlew flywayInfo
-
-# Run migrations manually (if needed)
-./gradlew flywayMigrate
 ```
 
-### Production Deployment
-```bash
-# Quick rebuild with organized scripts
-./.scripts/rebuild.sh
+## 🏗️ Claude Code Architecture Implementation
 
-# Build Docker image
-docker build -t jarvis:latest .
+### Core Principle: SubAgent Pattern with AI-Powered Orchestration
 
-# Deploy to server
-./.scripts/deploy.sh [server-ip]  # Defaults to configured server
+**JarvisMainAgent** - Central orchestrator following Claude Code principles:
+- ✅ **AI-based routing** - No hardcoded keywords, pure LLM decisions
+- ✅ **Simple delegation** - Clean handoff to specialized SubAgents
+- ✅ **Context-aware** - Maintains 10-message conversation history
+- ✅ **Error handling** - Graceful fallbacks and error recovery
 
-# Production compose (from .scripts/)
-docker-compose -f .scripts/docker-compose.prod.yml up -d
+**AgentDispatcher** - AI-powered agent selection:
+- ✅ **Automatic selection** - Uses agent descriptions for intelligent routing
+- ✅ **Availability checking** - Real-time agent status verification  
+- ✅ **Confidence scoring** - Fallback mechanisms when uncertain
+- ✅ **No complex logic** - Simple, clean implementation
 
-# Stop all services
-./.scripts/stop.sh
+**ObsidianAgent** - Specialized SubAgent:
+- ✅ **Clear description** for automatic selection
+- ✅ **Tool availability** - Full CRUD operations
+- ✅ **AI query parsing** - No regex patterns, pure LLM understanding
+- ✅ **Context awareness** - Remembers conversation history
+
+### SubAgent Interface (Contract)
+```kotlin
+interface SubAgent {
+    val name: String                    // Agent identifier
+    val description: String             // For AI-based selection
+    val tools: List<String>?           // Available tool set
+    suspend fun canHandle(query: String, chatHistory: List<ChatMessage>): Boolean
+    suspend fun handle(query: String, chatHistory: List<ChatMessage>): String  
+    suspend fun isAvailable(): Boolean  // Health check
+}
 ```
 
-## Architecture Overview
+### Real-time AI Reasoning (SSE)
+**ThinkingController** - Shows AI's internal thoughts:
+- ✅ **Server-Sent Events** for live reasoning display
+- ✅ **Session-based streams** with automatic cleanup
+- ✅ **Thought categorization** - start, thinking, complete, error
+- ✅ **Frontend integration** - Real-time UI updates
 
-### Core Components
-
-**Multi-Agent Architecture**: System now uses specialized agents for different knowledge sources with autonomous decision-making through Spring AI Routing Workflow Pattern.
-
-**Knowledge Management**: Agent-based knowledge processing with ML-powered memory classification using hybrid ensemble voting from semantic, structural, and contextual classifiers.
-
-**Vector Search**: PostgreSQL with pgvector extension for semantic search using ONNX embeddings (all-MiniLM-L6-v2, 384 dimensions).
-
-**Chat History**: Conversational context with PostgreSQL storage, supporting up to 20 messages per session.
-
-**Web UI**: Static HTML/CSS/JS interface embedded in JAR, no Node.js dependencies.
-
-### Project Structure v0.4.0 - Clean Architecture
+## 📋 Project Structure v0.6.0 - Clean Architecture
 
 ```
 jarvis/
 ├── .scripts/                       # 🔧 Build and Deploy Scripts
 │   ├── rebuild.sh                  # Docker rebuild script  
-│   ├── clean-rebuild.sh           # Clean rebuild script
-│   ├── deploy.sh                  # Production deployment
-│   └── stop.sh                    # Stop services script
-├── docs/                          # 📚 Documentation
-│   ├── ARCHITECTURE.md            # Detailed architecture docs
-│   ├── DEPLOYMENT.md              # Deployment guide
+│   ├── deploy.sh                   # Production deployment
+│   └── docker-compose.*.yml       # Container configurations
+├── docs/                          # 📚 Architecture Documentation
+│   ├── ARCHITECTURE.md            # Detailed system design
+│   ├── DEPLOYMENT.md              # Production deployment guide
 │   └── CHANGELOG.md               # Version history
 ├── src/main/kotlin/com/jarvis/
-│   ├── agent/                     # 🤖 Multi-Agent Domain Layer
-│   │   ├── contract/             # 📋 Agent interfaces  
-│   │   ├── Agent.kt      # Base agent interface
-│   │   └── KnowledgeManageable.kt  # Knowledge agent interface
-│   ├── MainAgent.kt      # Orchestrator agent with routing logic
-│   ├── ObsidianAgent.kt  # Obsidian vault specialist
-│   ├── NotionAgent.kt    # Notion workspace specialist (stub)
-│   └── memory/           # Memory classification layer
-│       ├── contract/     # Memory classification interfaces
-│       │   └── MemoryClassifier.kt     # ML classification system
-│       ├── HybridMemoryClassifier.kt      # Ensemble voting
-│       ├── SemanticMemoryClassifier.kt    # ML-based classification
-│       ├── StructuralMemoryClassifier.kt  # Pattern matching
-│       └── ContextMemoryClassifier.kt     # Metadata analysis
-├── service/              # Business logic
-│   ├── JarvisService.kt  # Main orchestration
-│   ├── KnowledgeService.kt  # Multi-agent knowledge management
-│   └── knowledge/        # Knowledge source layer
-│       ├── contract/     # Knowledge source interfaces
-│       │   └── KnowledgeSource.kt      # Pluggable knowledge sources
-│       └── ObsidianKnowledgeSource.kt  # Obsidian implementation
-├── repository/           # Data access layer (Spring Data JPA)
-│   ├── ChatMessageRepository.kt
-│   ├── ChatSessionRepository.kt
-│   └── KnowledgeFileRepository.kt
-├── controller/           # REST API layer
-├── entity/              # JPA entities
-├── dto/                 # Data transfer objects
-└── config/              # Spring configuration
+│   ├── agent/                     # 🤖 SubAgent Domain Layer
+│   │   ├── contract/             # 📋 Agent interfaces
+│   │   │   ├── SubAgent.kt       # Core SubAgent interface
+│   │   │   └── AgentSelection.kt  # Selection result wrapper
+│   │   ├── JarvisMainAgent.kt    # Central orchestrator 
+│   │   ├── AgentDispatcher.kt    # AI-powered agent selection
+│   │   └── ObsidianAgent.kt      # Obsidian vault specialist
+│   ├── service/                  # 💼 Business Logic Layer
+│   │   ├── JarvisService.kt      # Main chat orchestration
+│   │   ├── KnowledgeService.kt   # Vector search management
+│   │   └── knowledge/           # Knowledge source implementations
+│   │       ├── contract/        # Knowledge source interfaces
+│   │       ├── ObsidianVaultManager.kt    # Vault operations
+│   │       └── ObsidianKnowledgeSource.kt # Knowledge integration
+│   ├── controller/              # 🌐 REST API Layer
+│   │   ├── ChatController.kt    # Main chat endpoint
+│   │   ├── ThinkingController.kt # SSE reasoning streams
+│   │   └── KnowledgeController.kt # Knowledge management API
+│   ├── repository/              # 💾 Data Access Layer
+│   │   ├── ChatMessageRepository.kt
+│   │   ├── ChatSessionRepository.kt
+│   │   └── KnowledgeFileRepository.kt
+│   ├── entity/                  # 📊 JPA Entities
+│   ├── dto/                     # 📦 Data Transfer Objects
+│   └── config/                  # ⚙️ Spring Configuration
+├── src/main/resources/
+│   ├── static/                  # 🌐 Web UI (embedded in JAR)
+│   │   ├── index.html           # Main application interface
+│   │   ├── css/style.css        # Jarvis-themed dark styling
+│   │   └── js/app.js           # Frontend logic with SSE
+│   └── db/migration/           # 🗃️ Flyway database migrations
+└── src/test/kotlin/            # 🧪 Test Suite (63 tests, 100% pass)
+    ├── agent/                  # Agent behavior testing
+    ├── service/                # Business logic testing  
+    ├── controller/             # API endpoint testing
+    └── integration/            # Full system testing
 ```
 
-### Key Components
+## 🔌 API Architecture
 
-- **MainAgent**: Central orchestrator with routing workflow (dialogue/knowledge_search/delegate)
-- **ObsidianAgent**: Specialized agent for Obsidian vault management with ML classification
-- **HybridMemoryClassifier**: Ensemble ML system combining semantic, structural, and contextual analysis
-- **KnowledgeService**: Multi-agent coordinator for knowledge source management
-- **JarvisService**: Session management and chat orchestration
+### Chat API
+- `POST /api/chat` - Main conversation endpoint with session management
+- Supports context-aware responses and conversation history
 
-### Database Schema
+### Knowledge Management API  
+- `POST /api/knowledge/sync` - Sync Obsidian vault with vector database
+- `GET /api/knowledge/status` - Knowledge base statistics and health
 
-- `chat_sessions`: User conversation sessions
-- `chat_messages`: Message history with roles (USER, ASSISTANT, SYSTEM)
-- `knowledge_files`: Obsidian documents with vector embeddings
-- Uses pgvector extension with IVFFLAT indexes for similarity search
+### Real-time Features
+- `GET /api/thinking/stream/{sessionId}` - SSE reasoning thoughts
+- `GET /api/system/logs/stream` - Live system log streaming
 
-## Configuration
+### Health & Monitoring
+- `GET /actuator/health` - Application health checks
+- `GET /actuator/metrics` - Performance metrics and statistics
+
+## ⚙️ Configuration
 
 ### Required Environment Variables
 ```bash
@@ -153,149 +178,172 @@ export OBSIDIAN_VAULT_PATH="/path/to/obsidian-vault"
 ```
 
 ### Application Profiles
-- `local`: Development with localhost database
-- `docker`: Docker environment configuration
-- `test`: Test configuration with mocked services
+- **local**: Development with localhost PostgreSQL
+- **docker**: Container environment with networking
+- **test**: Mock services with TestContainers
 
-### Key Configuration Files
-- `application.yml`: Main configuration (Claude API, pgvector settings)
-- `application-local.yml`: Local development overrides
-- `application-docker.yml`: Docker-specific settings
-- `application-test.yml`: Test configuration with mocks
+### Key Configuration Options
+```yaml
+spring.ai.anthropic:
+  model: claude-3-5-sonnet-20241022
+  max-tokens: 4096
+  temperature: 0.7
 
-## Testing Strategy
+jarvis:
+  obsidian.vault-path: ${OBSIDIAN_VAULT_PATH:./obsidian-vault}
+  chat.max-history-size: 20
+  vector-search.max-results: 5
+```
 
-The project maintains 100% test pass rate (46/46 tests) with 80% code coverage:
+## 🧪 Testing Strategy (63 Tests - 100% Pass Rate)
 
-### Test Structure
-- **Unit Tests** (15): Service layer with MockK
-- **Controller Tests** (20): MockMvc with @WebMvcTest
-- **Integration Tests** (10): TestContainers with real PostgreSQL
-- **Application Tests** (1): Full Spring Boot context
+### Test Architecture
+- **Unit Tests**: Service layer with MockK framework  
+- **Controller Tests**: MockMvc with @WebMvcTest annotations
+- **Integration Tests**: TestContainers with real PostgreSQL
+- **Agent Tests**: AI-powered behavior and context testing
 
-### Test Configuration
-- `TestConfiguration.kt`: Provides mocked Anthropic API and embedding models
-- `MockEmbeddingModel`: Generates deterministic 384D vectors for consistent testing
-- TestContainers automatically spins up PostgreSQL with pgvector for integration tests
+### Key Test Coverage
+- **AgentDispatcherTest**: AI-based agent selection logic
+- **ObsidianAgentTest**: Vault operations and availability
+- **JarvisApplicationIntegrationTest**: Full system behavior
+- **HybridMemoryClassifierTest**: ML classification accuracy
 
 ### Running Tests
-Tests are designed to be deterministic and run without external dependencies. The MockEmbeddingModel ensures consistent vector generation for testing similarity searches.
+```bash
+# All tests (should always pass)
+./gradlew test
 
-## Development Workflow
+# With coverage report
+./gradlew test jacocoTestReport
 
-### Adding New Features
-1. Write tests first (TDD approach maintained)
-2. Implement feature in appropriate service layer
-3. Add controller endpoint if needed
-4. Update configuration if required
-5. Run full test suite to ensure no regressions
+# Integration tests only
+./gradlew test --tests "*IntegrationTest"
+```
 
-### Working with AI Components
-- Claude API calls go through `AnthropicChatModel` (Spring AI)
-- Embedding generation uses ONNX model with fallback to MockEmbeddingModel
-- All AI interactions are tested with mocked responses
-
-### Database Changes
-- Create new Flyway migration in `src/main/resources/db/migration/`
-- Follow naming convention: `V{number}__{description}.sql`
-- Update corresponding entity classes and repositories
-- Add integration tests for new schema
-
-## Performance Characteristics
+## 📊 Performance Characteristics
 
 ### Response Times
-- Simple queries: 2-3 seconds
-- History-based queries: 2-3 seconds (no search needed)
-- Knowledge queries (first time): 20-30 seconds  
-- Knowledge queries (cached): 0.03 seconds (777x faster)
+- **Simple queries**: 2-3 seconds (direct processing)
+- **Knowledge queries (cached)**: 0.03 seconds (777x faster than uncached)
+- **Knowledge queries (first time)**: 20-30 seconds (vector search + AI processing)
+- **Context-aware queries**: 2-3 seconds (uses existing chat history)
 
 ### Optimization Features
-- Query embedding cache with hash-based lookup
-- PostgreSQL vector indexes (IVFFLAT with cosine distance)
-- Context-aware routing eliminates unnecessary knowledge searches
-- Chat history limits (20 messages max) for performance
+- ✅ **Query embedding cache** - Hash-based lookup for repeated queries
+- ✅ **PostgreSQL vector indexes** - IVFFLAT with cosine distance  
+- ✅ **Context-aware routing** - Eliminates unnecessary knowledge searches
+- ✅ **Chat history limits** - 20 messages max for optimal performance
 
-## Web Interface
+## 🌐 Web Interface
 
-The web UI is served as static files embedded in the Spring Boot JAR:
-- `src/main/resources/static/index.html`: Main interface
-- `src/main/resources/static/css/style.css`: Jarvis-themed styling
-- `src/main/resources/static/js/app.js`: Fetch API integration
+The complete web UI is embedded as static files in the Spring Boot JAR:
+- **Dark theme** - Professional Jarvis-inspired design
+- **Real-time chat** - SSE-powered reasoning display
+- **Live system logs** - Streaming log viewer
+- **Knowledge management** - Sync controls and status
+- **Responsive design** - Works on desktop and mobile
 
-Access at: http://localhost:8080 (when running locally)
+Access at: `http://localhost:8080` (development) or configured production URL
 
-## Deployment Notes
+## 🐳 Production Deployment
 
-### Docker Configuration
-- Multi-stage build with Java 21 runtime
-- PostgreSQL 16 with pgvector extension  
-- Volume mounts for Obsidian vault and ONNX model
-- Health checks via Spring Actuator
+### Docker Architecture  
+- **Multi-stage build** with Java 21 runtime
+- **PostgreSQL 16** with pgvector extension
+- **Volume mounts** for Obsidian vault and ONNX model
+- **Health checks** via Spring Actuator endpoints
 
-### Production Considerations
-- Requires external PostgreSQL with pgvector
-- ONNX model file must be present in container
-- Configure proper memory limits (1-2GB recommended)
-- Monitor via `/actuator/health` and `/actuator/metrics`
-
-### Obsidian Integration
-- Supports markdown files with YAML frontmatter
-- Processes internal links `[[link]]` and tags `#tag`  
-- Sync via `/api/knowledge/sync` endpoint
-- File watching disabled in current version (MVP)
-
-## Common Issues & Solutions
-
-### ONNX Model Missing
-If the all-MiniLM-L6-v2.onnx model is not found, the system automatically falls back to MockEmbeddingModel for development/testing.
-
-### pgvector Extension
-Ensure PostgreSQL containers use `pgvector/pgvector:pg16` image, not standard PostgreSQL.
-
-### Test Failures
-All 58 tests should pass. If integration tests fail, check that TestContainers can access Docker daemon.
-
-## Recent Updates (v0.4.0)
-
-### Architecture Improvements
-- **Refactored to Clean Architecture**: Interfaces separated from implementations in `contract/` packages
-- **Multi-Agent System**: Specialized agents for different knowledge sources
-- **ML-Powered Classification**: Replaced hardcoded logic with intelligent memory classification
-- **Layer-based Organization**: Each layer has its own `contract/` package for interfaces
-
-### New Features
-- **Hybrid Memory Classifier**: Ensemble voting from semantic, structural, and contextual classifiers
-- **Enhanced Knowledge Management**: Agent-based architecture with pluggable knowledge sources
-- **Improved Project Structure**: Clear separation of concerns with interfaces in dedicated packages
-
-### Memory Classification System
-- **SemanticMemoryClassifier**: Uses embeddings and cosine similarity for content analysis
-- **StructuralMemoryClassifier**: Pattern matching for document structure (headings, lists, tasks)
-- **ContextMemoryClassifier**: Metadata-based classification (file paths, timestamps, tags)
-- **HybridMemoryClassifier**: Ensemble voting with configurable weights
-
-### Supported Document Types
-- `meeting`: Meeting notes, standups, discussions
-- `project`: Project documentation, specifications
-- `task`: TODO items, action items, checklists  
-- `note`: General notes, observations
-- `code`: Code snippets, technical documentation
-- `documentation`: Reference materials, guides
-- `research`: Research notes, analysis
-
-### Memory Issues
-Increase JVM heap size in production: `-Xmx2g` or configure Docker memory limits.
-
-## API Endpoints
-
-### Chat API
-- `POST /api/chat`: Send message with sessionId
-- Supports conversation history and context-aware responses
-
-### Knowledge API  
-- `POST /api/knowledge/sync`: Sync Obsidian vault
-- `GET /api/knowledge/status`: Check knowledge base status
+### Container Services
+```yaml
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    volumes:
+      - jarvis_postgres_data:/var/lib/postgresql/data
+      
+  jarvis:
+    build: .
+    depends_on: [postgres]
+    volumes:
+      - ${OBSIDIAN_VAULT_PATH:-./obsidian-vault}:/app/obsidian-vault:ro
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+```
 
 ### Health Monitoring
-- `GET /actuator/health`: Application health
-- `GET /actuator/metrics`: Performance metrics
+- **Application health**: `/actuator/health`
+- **Database connectivity**: Automatic PostgreSQL health checks  
+- **Agent availability**: Real-time SubAgent status monitoring
+- **Memory usage**: JVM metrics via Actuator
+
+## 🚨 Important Development Guidelines
+
+### Claude Code Principles (MANDATORY)
+1. **AI-First Decisions** - Never use hardcoded patterns or keywords
+2. **Simple Orchestration** - Keep agent logic clean and focused  
+3. **Clear Descriptions** - SubAgent descriptions drive automatic selection
+4. **Context Awareness** - Always pass chat history for context
+5. **Error Recovery** - Implement graceful fallbacks and error handling
+
+### Code Quality Standards
+1. **Testing Required** - All new features must include tests
+2. **No Regression** - All 63 tests must continue passing
+3. **Clean Architecture** - Maintain separation of concerns
+4. **Performance** - Monitor response times and optimize caching
+5. **Documentation** - Update this file when adding major features
+
+### Adding New SubAgents
+1. Implement `SubAgent` interface
+2. Add clear `description` for AI selection
+3. Include in `AgentDispatcher` constructor
+4. Write comprehensive tests
+5. Update documentation
+
+## 🔄 Recent Major Updates (v0.6.0)
+
+### Complete Obsidian Integration
+- ✅ **Full CRUD operations** - Create, read, update, delete markdown files
+- ✅ **AI-powered parsing** - No regex patterns, pure LLM understanding  
+- ✅ **Physical file management** - Real vault operations with transaction safety
+- ✅ **Context awareness** - Remembers conversation history between operations
+
+### Advanced AI Capabilities  
+- ✅ **Multi-line response parsing** - Handles complex AI outputs
+- ✅ **Anti-hallucination system** - Real tool observations prevent false claims
+- ✅ **Error recovery** - Automatic fallback mechanisms
+- ✅ **Context-aware routing** - Eliminates unnecessary knowledge searches
+
+### Real-time Features
+- ✅ **SSE reasoning display** - Live AI thought streaming
+- ✅ **System log streaming** - Real-time debug information
+- ✅ **Connection management** - Automatic cleanup and error handling
+
+## 🔮 Architecture Evolution Path
+
+The system has evolved from basic agent architecture (v0.3.0) through ReAct reasoning (v0.5.0) to the current complete Claude Code implementation (v0.6.0).
+
+**Future Enhancement Areas**:
+- **Voice Integration** - Whisper API for speech-to-text
+- **Mobile PWA** - Progressive Web App for mobile access
+- **Advanced Authentication** - User management and permissions
+- **Multi-modal Content** - Image and document processing
+- **Distributed Caching** - Redis for horizontal scaling
+
+## 💡 Troubleshooting
+
+### Common Issues
+- **ONNX Model Missing**: System automatically falls back to MockEmbeddingModel
+- **pgvector Extension**: Use `pgvector/pgvector:pg16` image, not standard PostgreSQL
+- **Test Failures**: All 63 tests should pass - check Docker daemon access for TestContainers
+- **Memory Issues**: Configure JVM heap size: `-Xmx2g` or Docker memory limits
+
+### Health Checks
+- **Application**: `curl http://localhost:8080/actuator/health`
+- **Database**: Check PostgreSQL logs for connection issues
+- **Obsidian Vault**: Verify path exists and is readable
+- **AI Services**: Check Anthropic API key configuration
+
+---
+
+This documentation reflects the current production-ready state of Jarvis v0.6.0 with complete Claude Code architecture implementation, comprehensive testing, and advanced AI capabilities.

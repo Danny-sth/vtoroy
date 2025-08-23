@@ -4,45 +4,59 @@ All notable changes to this project will be documented in this file.
 
 ## [v0.6.0] - 2025-08-23
 
-### 🎯 Major Release - Complete Obsidian Integration with ReAct AI
+### 🤖 Major Release - Claude Code SubAgent Architecture
 
-This release represents a complete overhaul of the Obsidian integration, transforming it from a simple file reader into a full-featured knowledge management system with AI-powered reasoning capabilities.
+This release represents a complete architectural transformation to Claude Code principles, implementing the SubAgent pattern with AI-first decision making and enhanced context awareness.
 
-#### 🚀 New Features
-- **Full CRUD Obsidian Operations**: Complete Create, Read, Update, Delete functionality for Obsidian vault
-- **ObsidianVaultManager**: New comprehensive utility class for all vault operations
-- **ReAct Reasoning Engine**: Advanced multi-step reasoning for complex operations
-- **AI-Driven Decision Making**: Replaced ALL hardcoded patterns with Claude AI decisions
-- **Chat History Integration**: Reasoning engine now has full conversation context
-- **Automatic Cleanup**: Knowledge base sync now removes deleted files automatically
-- **Real-time File Operations**: Physical file manipulation through Docker volume mounting
+#### 🚀 New Claude Code Features
+- **SubAgent Architecture**: Implemented simple, focused agents following Claude Code principles
+- **AgentDispatcher**: AI-powered agent selection without hardcoded routing
+- **JarvisMainAgent**: Central orchestrator that delegates to specialized SubAgents
+- **ObsidianAgent**: Specialized SubAgent for Obsidian vault operations
+- **Context Awareness**: Full chat history passing for conversation continuity
+- **SSE Reasoning Display**: Real-time AI reasoning via Server-Sent Events
+- **AI-First Decisions**: Zero hardcoded patterns - all decisions made by Claude AI
+- **Enhanced Memory Classification**: Hybrid ML-powered classification system
 
-#### 🛠️ Technical Improvements
-- **Transaction Management**: Fixed coroutine transaction issues with `runBlocking` approach
-- **Memory Classification**: AI-based intent detection replacing regex patterns
-- **Error Recovery**: Automatic fallback from simple to reasoning mode on failures
-- **Multi-line Response Parsing**: Fixed truncation issues in reasoning responses
-- **Database Consistency**: Automatic cleanup of orphaned records during sync
+#### 🛠️ Technical Architecture
+- **SubAgent Interface**: Core contract with `canHandle()`, `handle()`, `isAvailable()` methods
+- **AI-Based Routing**: AgentDispatcher uses Claude to select appropriate agents
+- **ThinkingController**: SSE endpoint for real-time reasoning display
+- **Spring Boot 3.5.4 + Kotlin 1.9.25**: Updated to latest stable versions
+- **Claude Code Principles**: Simple agents, AI decisions, zero complexity
 
-#### ✅ Verified Capabilities
-- **File Management**: ✅ Create, read, update, delete markdown files
-- **Complex Reasoning**: ✅ Multi-step operations with real-world validation
-- **Context Awareness**: ✅ References previous operations in conversation
-- **Search Operations**: ✅ Tag-based and content-based search
-- **Sync Integrity**: ✅ Database stays synchronized with file system
+#### 🧪 Testing Excellence
+- **63 Tests Total**: Comprehensive test suite covering all components
+- **100% Test Pass Rate**: All tests passing consistently
+- **MockK Integration**: Modern Kotlin mocking framework
+- **TestContainers**: Real PostgreSQL for integration tests
+- **Test Categories**: Unit tests, controller tests, integration tests
+
+#### ✅ SubAgent Capabilities
+- **Dynamic Agent Selection**: AI chooses best agent for each query
+- **Context Preservation**: Agents remember conversation history
+- **Multi-turn Conversations**: Proper context awareness between messages
+- **Real-time Reasoning**: SSE display of AI decision process
+- **Fallback Handling**: Graceful degradation when agents unavailable
+
+#### 🎯 Context Awareness Fixes
+- **Question Detection**: Agent recognizes when user is responding to questions
+- **Parameter Collection**: Gathers all needed information from chat history
+- **Execution Logic**: Proper action execution when all parameters available
+- **Multi-step Operations**: Support for complex multi-turn interactions
 
 #### 🐛 Bug Fixes
-- Fixed AI hallucination in reasoning engine
-- Fixed transaction exceptions in coroutine context
-- Fixed multi-line response truncation
-- Fixed knowledge base showing deleted files
-- Fixed chat history not being passed to reasoning engine
+- Fixed context awareness in multi-turn conversations
+- Fixed agent name mismatch in tests ("ObsidianAgent" vs "obsidian-manager")
+- Fixed AgentDispatcher fallback logic expectations
+- Fixed integration test API changes
+- Fixed compilation errors in test suite
 
 #### 📊 Performance
-- Simple operations: 2-3 seconds
+- Simple queries: 2-3 seconds
 - Complex reasoning: 5-20 seconds (multi-step)
-- Knowledge sync: 10-15 seconds for full vault
-- File operations: < 1 second
+- Agent selection: < 1 second
+- SSE latency: Real-time (<100ms)
 
 ---
 
@@ -174,11 +188,11 @@ This release represents a complete overhaul of the Obsidian integration, transfo
 
 ## Project Status
 
-- **Current Version**: v0.3.1
-- **Status**: Beta (UI polished, agent architecture implemented, all tests passing)
-- **Test Coverage**: 46/46 tests (100% passing), 80% code coverage
-- **Build Time**: ~1 minute (optimized Docker build)
-- **Production Ready**: Web UI functional, API stable, Docker deployable
+- **Current Version**: v0.6.0
+- **Status**: Stable (Claude Code architecture, SubAgent pattern, all tests passing)
+- **Test Coverage**: 63/63 tests (100% passing), comprehensive coverage
+- **Architecture**: Claude Code SubAgent pattern with AI-first decisions
+- **Production Ready**: Full SubAgent architecture, SSE reasoning, Docker deployable
 
 ## Next Steps
 

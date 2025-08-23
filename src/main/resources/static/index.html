@@ -50,22 +50,14 @@
                     <!-- Messages Container -->
                     <div class="messages-container" id="messages-container">
                         <div class="welcome-message">
-                            <div class="welcome-icon">👋</div>
+                            <div class="ai-avatar-container">
+                                <canvas id="ai-avatar" width="200" height="200"></canvas>
+                                <div class="avatar-glow"></div>
+                            </div>
                             <h2>Добро пожаловать в Jarvis!</h2>
                             <p>Ваш персональный AI-ассистент с автономным принятием решений.</p>
-                            <div class="features">
-                                <div class="feature">
-                                    <span class="feature-icon">💬</span>
-                                    <span>Умная беседа с памятью</span>
-                                </div>
-                                <div class="feature">
-                                    <span class="feature-icon">📚</span>
-                                    <span>Поиск в базе знаний</span>
-                                </div>
-                                <div class="feature">
-                                    <span class="feature-icon">🎯</span>
-                                    <span>Автономные решения</span>
-                                </div>
+                            <div class="avatar-status">
+                                <span id="avatar-status-text" class="status-text">Готов к работе</span>
                             </div>
                         </div>
                     </div>

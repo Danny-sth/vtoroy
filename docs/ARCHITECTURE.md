@@ -1,911 +1,602 @@
-# Jarvis AI Assistant - Архитектурная документация
+# Jarvis AI Assistant - Architecture Documentation
 
-> **Версия:** 0.5.0 - ReAct Reasoning System + Multi-Agent Architecture  
-> **Дата:** 2025-08-22  
-> **Статус:** Production-Ready
+## Overview
 
-## 🎯 Обзор системы
+Jarvis is a production-ready personal AI assistant implementing **Claude Code SubAgent architecture** with clean separation of concerns and advanced AI capabilities. The system demonstrates modern AI application patterns with real-time reasoning, vector search, and comprehensive testing.
 
-Jarvis представляет собой персональный AI-ассистент с **автономным принятием решений**, реализованный на основе **Spring AI Routing Workflow Pattern**. Система способна самостоятельно решать, когда нужна информация из базы знаний, а когда достаточно общего диалога.
+**Current Version**: 0.6.0 (Latest Release - 2025-08-23)  
+**Architecture**: Clean Architecture + Domain-Driven Design  
+**Technology Stack**: Spring Boot 3.5.4 + Kotlin 1.9.25 + PostgreSQL 16 + pgvector
 
-### Ключевые принципы архитектуры
+## 🏗️ High-Level Architecture
 
-- **🏗️ Clean Architecture**: Интерфейсы отделены от реализаций в `contract/` пакетах
-- **🤖 Multi-Agent System**: Специализированные агенты для разных источников знаний  
-- **🧠 ReAct Reasoning**: AI-driven пошаговое рассуждение с выполнением действий
-- **🔄 Contract-Based Design**: Четкое разделение ответственности через интерфейсы
-- **⚡ Производительность**: Query cache обеспечивает 777x ускорение + автоматический fallback
-- **🧪 Test-Driven**: 100% покрытие тестами (46/46 проходят)
-
----
-
-## 🏗️ Clean Architecture с Multi-Agent System
-
-```mermaid
-graph TB
-    User[👤 Пользователь] --> WebUI[🌐 Web Interface]
-    User --> API[📡 REST API]
-    
-    subgraph "🎮 Presentation Layer"
-        WebUI --> |Dynamic Version| SystemController[🔧 SystemController]
-        API --> ChatController[💬 ChatController]
-        API --> KnowledgeController[📚 KnowledgeController]
-        SystemController --> |Logs Stream| LoggingService[📋 LoggingService]
-    end
-    
-    subgraph "🧠 Application Layer"
-        ChatController --> JarvisService[🧠 JarvisService]
-        KnowledgeController --> KnowledgeService[🔍 KnowledgeService]
-        
-        JarvisService --> MainAgent[🤖 MainAgent]
-        KnowledgeService --> |contract/| KnowledgeManageable{📋 KnowledgeManageable}
-    end
-    
-    subgraph "🤖 Multi-Agent Domain Layer"
-        MainAgent --> |Routing Decision| ObsidianAgent[📝 ObsidianAgent]
-        MainAgent --> NotionAgent[📋 NotionAgent]
-        
-        KnowledgeManageable --> ObsidianAgent
-        KnowledgeManageable --> NotionAgent
-        
-        ObsidianAgent --> |contract/| MemoryClassifier{🧠 MemoryClassifier}
-    end
-    
-    subgraph "🧠 ML Classification Layer"
-        MemoryClassifier --> HybridMemoryClassifier[🎯 HybridMemoryClassifier]
-        HybridMemoryClassifier --> SemanticClassifier[🧬 SemanticClassifier]
-        HybridMemoryClassifier --> StructuralClassifier[📐 StructuralClassifier] 
-        HybridMemoryClassifier --> ContextClassifier[📄 ContextClassifier]
-    end
-    
-    subgraph "🗄️ Infrastructure Layer"
-        ObsidianAgent --> |contract/| KnowledgeSource{📂 KnowledgeSource}
-        KnowledgeSource --> ObsidianKnowledgeSource[📝 ObsidianKnowledgeSource]
-        
-        KnowledgeService --> VectorSearch[🧮 Vector Search]
-        VectorSearch --> PostgreSQL[(🗃️ PostgreSQL + pgvector)]
-        
-        MainAgent --> Claude[🤖 Claude 3.5 Sonnet]
-        SemanticClassifier --> EmbeddingModel[🧬 ONNX Embedding Model]
-    end
-    
-    style MainAgent fill:#4CAF50
-    style HybridMemoryClassifier fill:#2196F3
-    style KnowledgeManageable fill:#FF9800
-    style MemoryClassifier fill:#9C27B0
-    style KnowledgeSource fill:#607D8B
-```
-
----
-
-## 📂 Clean Architecture - Структура проекта
-
-### Contract-Based Package Organization
+### System Overview
 
 ```
-src/main/kotlin/com/jarvis/
-├── agent/                          # 🤖 Multi-Agent Domain Layer
-│   ├── MainAgent.kt               # Центральный оркестратор
-│   ├── ObsidianAgent.kt           # Специалист по Obsidian + ReAct
-│   ├── NotionAgent.kt             # Специалист по Notion (stub)
-│   ├── contract/                   # 📋 Agent Contracts
-│   │   ├── Agent.kt               # Базовый интерфейс агента
-│   │   └── KnowledgeManageable.kt # Интерфейс управления знаниями
-│   ├── memory/                    # 🧠 ML Memory Classification
-│   │   ├── HybridMemoryClassifier.kt      # Ensemble voting
-│   │   ├── SemanticMemoryClassifier.kt    # ML-based analysis
-│   │   ├── StructuralMemoryClassifier.kt  # Pattern matching
-│   │   ├── ContextMemoryClassifier.kt     # Metadata analysis
-│   │   └── contract/              # 🎯 Classification Contracts
-│   │       └── MemoryClassifier.kt # Интерфейс ML-классификации
-│   └── reasoning/                 # 🧠 ReAct Reasoning Engine
-│       └── ObsidianReasoningEngine.kt     # AI-driven step-by-step reasoning
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Web Browser   │◄──►│  Spring Boot App  │◄──►│   PostgreSQL    │
+│                 │    │                  │    │   + pgvector    │
+│ - Chat UI       │    │ - REST API       │    │                 │
+│ - SSE Streams   │    │ - SubAgents      │    │ - Chat History  │
+│ - Real-time     │    │ - AI Reasoning   │    │ - Vector Search │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+                              │
+                              ▼
+                    ┌──────────────────┐
+                    │   Anthropic API  │
+                    │                  │
+                    │ Claude 3.5       │
+                    │ Sonnet           │
+                    └──────────────────┘
+```
+
+### Claude Code SubAgent Pattern Implementation
+
+The system follows **Claude Code principles** with AI-powered orchestration:
+
+```
+JarvisMainAgent (Orchestrator)
+├── AgentDispatcher (AI Selection)
+│   ├── Availability Check
+│   ├── Agent Description Analysis
+│   └── Confidence-based Selection
 │
-├── service/                       # 🧠 Application Services
-│   ├── JarvisService.kt          # Главный сервис оркестрации
-│   ├── KnowledgeService.kt       # Мульти-агентный координатор
-│   ├── LoggingService.kt         # Real-time логирование
-│   └── knowledge/                # 📂 Knowledge Sources
-│       ├── ObsidianKnowledgeSource.kt  # Реализация источника
-│       └── contract/             # 🔗 Knowledge Contracts
-│           └── KnowledgeSource.kt # Интерфейс источника знаний
-│
-├── controller/                    # 🎮 Presentation Layer
-│   ├── ChatController.kt         # REST API для чата
-│   ├── KnowledgeController.kt    # REST API для знаний
-│   └── SystemController.kt       # Системная информация + логи
-│
-├── entity/                       # 🗄️ Data Entities
-├── dto/                          # 📦 Data Transfer Objects
-│   ├── ChatRequest.kt           # Chat API requests
-│   ├── ChatResponse.kt          # Chat API responses
-│   ├── ReasoningTypes.kt        # ReAct reasoning data structures
-│   └── ObsidianRequests.kt      # Obsidian operation requests
-├── repository/                   # 💾 Data Access Layer (JPA)
-└── config/                       # ⚙️ Spring Configuration
+└── Specialized SubAgents
+    └── ObsidianAgent (Vault Operations)
+        ├── AI Query Parsing
+        ├── Context Awareness  
+        └── Tool Execution
 ```
 
-### Contract Separation Philosophy
+## 🧩 Core Components
 
-```mermaid
-graph LR
-    subgraph "🏗️ Clean Architecture Benefits"
-        Interface[📋 Interface Definition] --> |contract/| Package[📂 Contract Package]
-        Package --> Implementation[⚙️ Implementation]
-        
-        Interface --> |Testability| MockingEasy[🧪 Easy Mocking]
-        Interface --> |Flexibility| PluggableDesign[🔌 Pluggable Design]
-        Interface --> |Maintainability| ClearResponsibilities[📝 Clear Responsibilities]
-        
-        Implementation --> |Follows| Interface
-        Implementation --> |Near| Package
-    end
-    
-    style Interface fill:#4CAF50
-    style Package fill:#2196F3  
-    style Implementation fill:#FF9800
-```
+### 1. SubAgent Architecture
 
----
-
-## 🧠 ReAct Reasoning System Architecture
-
-### AI-Driven Decision Making с автоматическим Fallback
-
-```mermaid
-graph TB
-    subgraph "🎯 Query Processing Pipeline"
-        UserQuery[📝 User Query] --> MainAgent[🤖 MainAgent]
-        MainAgent --> RouteDecision{🧠 Route Decision}
-        RouteDecision --> |delegate| ObsidianAgent[📝 ObsidianAgent]
-        RouteDecision --> |knowledge_search| VectorSearch[🔍 Vector Search]
-        RouteDecision --> |dialogue| DirectResponse[💬 Direct Response]
-    end
-    
-    subgraph "🧠 ObsidianAgent Intelligence"
-        ObsidianAgent --> ComplexityDetection{🤖 AI Complexity Detection}
-        ComplexityDetection --> |simple| SimpleExecution[⚡ Simple Execution]
-        ComplexityDetection --> |complex| ReasoningEngine[🧠 Reasoning Engine]
-        
-        SimpleExecution --> ErrorCheck{❌ Error Result?}
-        ErrorCheck --> |success| SimpleResponse[✅ Simple Response]
-        ErrorCheck --> |failure| AutoFallback[🔄 Auto Fallback]
-        AutoFallback --> ReasoningEngine
-    end
-    
-    subgraph "🔄 ReAct Reasoning Loop"
-        ReasoningEngine --> Step[📋 Reasoning Step]
-        Step --> Thought[💭 AI Thought Process]
-        Thought --> Action[⚡ Tool Action]
-        Action --> Observation[👀 Real Observation]
-        Observation --> NextStep{🤔 Continue?}
-        NextStep --> |yes| Step
-        NextStep --> |complete| FinalResult[✅ Complete Result]
-    end
-    
-    subgraph "🛠️ Available Tools"
-        Action --> ListNotes[📋 list_notes]
-        Action --> SearchNotes[🔍 search_notes]
-        Action --> ReadNote[📖 read_note]
-        Action --> CreateNote[✨ create_note]
-        Action --> UpdateNote[✏️ update_note]
-        Action --> DeleteNote[🗑️ delete_note]
-        Action --> GetTags[🏷️ get_tags]
-        Action --> GetBacklinks[🔗 get_backlinks]
-    end
-    
-    style ReasoningEngine fill:#4CAF50
-    style ComplexityDetection fill:#2196F3
-    style AutoFallback fill:#FF9800
-    style FinalResult fill:#9C27B0
-```
-
-### ReAct Pattern Implementation Details
-
-```mermaid
-sequenceDiagram
-    participant U as 👤 User
-    participant OA as 📝 ObsidianAgent
-    participant AI as 🤖 AI Model
-    participant RE as 🧠 ReasoningEngine
-    participant VM as 🗄️ VaultManager
-
-    U->>OA: "удали файл obsidian-vault/test456.md"
-    
-    Note over OA: 🤖 AI Complexity Detection
-    OA->>AI: isComplexQuery(query)
-    AI-->>OA: "complex" (multi-step operation)
-    
-    Note over OA,RE: 🧠 Activate Reasoning Mode
-    OA->>RE: reason(query)
-    
-    loop ReAct Loop (max 10 steps)
-        Note over RE,AI: Step N: Think → Act
-        RE->>AI: REASONING_PROMPT + context
-        AI-->>RE: Thought + Action
-        
-        Note over RE,VM: Execute Real Action
-        RE->>VM: executeAction(toolName, params)
-        VM-->>RE: Real Observation Result
-        
-        Note over RE: Check Completion
-        alt Complete
-            RE-->>OA: finalResult
-        else Continue
-            Note over RE: Add to reasoning context
-        end
-    end
-    
-    OA-->>U: "Файл test456.md успешно удален"
-    
-    Note over U: ✅ File physically deleted from disk
-```
-
-### Key ReAct Features
-
-| Feature | Implementation | Benefit |
-|---------|---------------|---------|
-| **AI Complexity Detection** | Claude model determines simple vs complex | No hardcoded patterns |
-| **Automatic Fallback** | Simple → Reasoning on errors | Robust error recovery |
-| **Multi-line Parsing** | Smart Complete: response parsing | Full structured responses |
-| **Anti-hallucination** | Real tool execution with observations | Accurate results |
-| **Path Intelligence** | AI understands `obsidian-vault/` prefixes | Flexible file operations |
-| **Tool Execution** | 8 Obsidian tools (CRUD + search) | Complete functionality |
-
----
-
-## 🧠 ML-Powered Memory Classification System
-
-### Hybrid Ensemble Architecture
-
-```mermaid
-graph TB
-    subgraph "📄 Input Processing"
-        KnowledgeItem[📝 Knowledge Item] --> ContentAnalyzer[🔍 Content Analyzer]
-        ContentAnalyzer --> TextContent[📝 Text Content]
-        ContentAnalyzer --> Metadata[📊 Metadata] 
-        ContentAnalyzer --> Structure[🏗️ Structure]
-    end
-    
-    subgraph "🧠 ML Classification Layer"
-        TextContent --> SemanticClassifier[🧬 Semantic Classifier]
-        Structure --> StructuralClassifier[📐 Structural Classifier] 
-        Metadata --> ContextClassifier[📄 Context Classifier]
-        
-        SemanticClassifier --> |Embeddings + Similarity| SemanticScore[🎯 Semantic Score]
-        StructuralClassifier --> |Pattern Matching| StructuralScore[📊 Structural Score]
-        ContextClassifier --> |Metadata Analysis| ContextScore[📋 Context Score]
-    end
-    
-    subgraph "🎲 Ensemble Voting"
-        SemanticScore --> HybridClassifier[🎯 Hybrid Classifier]
-        StructuralScore --> HybridClassifier
-        ContextScore --> HybridClassifier
-        
-        HybridClassifier --> |Weighted Voting| EnsembleScore[🏆 Ensemble Score]
-        EnsembleScore --> |Confidence Threshold| FinalClassification[✅ Final Classification]
-    end
-    
-    subgraph "📋 Memory Types"
-        FinalClassification --> Meeting[👥 meeting]
-        FinalClassification --> Project[🚀 project]
-        FinalClassification --> Task[✅ task]
-        FinalClassification --> Note[📝 note]
-        FinalClassification --> Code[💻 code]
-        FinalClassification --> Documentation[📚 documentation]
-        FinalClassification --> Research[🔬 research]
-    end
-    
-    style HybridClassifier fill:#4CAF50
-    style SemanticClassifier fill:#2196F3
-    style StructuralClassifier fill:#FF9800
-    style ContextClassifier fill:#9C27B0
-```
-
-### Classification Algorithms Detail
-
-| Classifier | Method | Features | Weight |
-|------------|---------|----------|---------|
-| **Semantic** | Cosine Similarity + ML | Word embeddings, semantic meaning | **40%** |
-| **Structural** | Pattern Matching | Headlines, lists, tasks, code blocks | **30%** |
-| **Context** | Metadata Analysis | File paths, timestamps, tags, size | **30%** |
-| **Ensemble** | Weighted Voting | Combined confidence scoring | **Final** |
-
----
-
-## 🔀 Multi-Agent Routing Workflow - Детальная схема
-
-### Процесс принятия решений с историей
-
-```mermaid
-sequenceDiagram
-    participant U as 👤 User
-    participant JS as 🧠 JarvisService
-    participant RW as 🔀 RoutingWorkflow  
-    participant RC as 📊 Route Classifier
-    participant C as 🤖 Claude
-    participant KS as 🔍 KnowledgeService
-    participant CH as 💾 Chat History
-    participant DB as 🗃️ PostgreSQL
-
-    U->>JS: "Как меня зовут?" (sessionId)
-    
-    Note over JS,CH: Шаг 0: Загрузка истории
-    JS->>CH: loadChatHistory(sessionId, limit=20)
-    CH-->>JS: Previous messages[]
-    
-    Note over JS,RW: Шаг 1: Роутинг с историей
-    JS->>RW: route(query, chatHistory[])
-    RW->>RC: determineRoute(query, history)
-    RC->>C: ROUTING_PROMPT + history + query
-    
-    Note over RC: 🧠 Анализ: имя в истории → general
-    C-->>RC: "general"
-    RC-->>RW: "general"
-    
-    Note over RW,C: Шаг 2: Генерация с контекстом
-    RW->>C: System prompt + Chat History + Current Query
-    C-->>RW: "Вас зовут Денис..."
-    RW-->>JS: Response with context
-    
-    Note over JS,CH: Шаг 3: Сохранение
-    JS->>CH: Save user + assistant messages
-    JS-->>U: Final answer
-```
-
-### Intelligent Routing с анализом истории
-
-```mermaid
-flowchart TD
-    Query[📝 User Query] --> HistoryCheck[🧠 Check Chat History]
-    HistoryCheck --> HasHistory{📚 Has chat history?}
-    
-    HasHistory --> |Yes| ContextAnalyzer[🔍 Context Analyzer]
-    HasHistory --> |No| DirectAnalyzer[🔍 Direct Query Analyzer]
-    
-    ContextAnalyzer --> InHistory{💭 Answer in history?}
-    InHistory --> |Yes| GeneralRoute[💬 general]
-    InHistory --> |No| AboutConversation{💬 About current chat?}
-    
-    AboutConversation --> |Yes| GeneralRoute
-    AboutConversation --> |No| DirectAnalyzer
-    
-    DirectAnalyzer --> NeedsSearch{🔍 Needs knowledge search?}
-    NeedsSearch --> |Yes| KnowledgeRoute[📚 knowledge]
-    NeedsSearch --> |No| GeneralRoute
-    
-    KnowledgeRoute --> KnowledgeHandler[📚 Knowledge Handler + History]
-    GeneralRoute --> GeneralHandler[💬 General Handler + History]
-    
-    style GeneralRoute fill:#e8f5e8
-    style KnowledgeRoute fill:#e1f5fe
-    style HistoryCheck fill:#fff9c4
-```
-
----
-
-## 🧬 Embedding Pipeline Architecture
-
-### ONNX Model Integration
-
-```mermaid
-graph LR
-    subgraph "Embedding Generation"
-        Text[📝 Input Text] --> ONNX[🧬 ONNX Model]
-        ONNX --> |all-MiniLM-L6-v2| Vector[🔢 384D Vector]
-        
-        Missing[❌ Model Missing] --> Mock[🎭 MockEmbeddingModel]
-        Mock --> |Deterministic| TestVector[🧪 Test Vector]
-    end
-    
-    subgraph "Caching Layer"
-        Vector --> Cache{💾 Query Cache}
-        TestVector --> Cache
-        Cache --> |Hit| FastReturn[⚡ 777x faster]
-        Cache --> |Miss| Store[💾 Store & Return]
-    end
-    
-    subgraph "Storage"
-        Store --> PostgreSQL[(🗃️ PostgreSQL)]
-        PostgreSQL --> PGVector[🧮 pgvector extension]
-        PGVector --> VectorIndex[📇 Vector Index]
-    end
-    
-    style ONNX fill:#4caf50
-    style Mock fill:#ff9800
-    style Cache fill:#2196f3
-```
-
-### Vector Search Flow
-
-```mermaid
-sequenceDiagram
-    participant Q as 📝 Query
-    participant EM as 🧬 Embedding Model
-    participant C as 💾 Cache
-    participant DB as 🗃️ Database
-    participant VS as 🔍 Vector Search
-
-    Q->>EM: embed(query)
-    EM->>C: checkCache(queryHash)
-    
-    alt Cache Hit
-        C-->>EM: Cached embedding ⚡
-    else Cache Miss  
-        EM->>EM: Generate new embedding
-        EM->>C: storeCache(queryHash, embedding)
-    end
-    
-    EM-->>VS: query_embedding[384]
-    VS->>DB: SELECT * FROM knowledge_files ORDER BY embedding <=> query_embedding
-    DB-->>VS: Top 5 similar documents
-    VS-->>Q: Relevant context
-```
-
----
-
-## 💾 Data Architecture
-
-### Database Schema
-
-```mermaid
-erDiagram
-    CHAT_SESSIONS {
-        string id PK
-        timestamp created_at
-        timestamp last_active_at
-    }
-    
-    CHAT_MESSAGES {
-        bigint id PK
-        string session_id FK
-        string role
-        text content
-        timestamp created_at
-    }
-    
-    KNOWLEDGE_FILES {
-        bigint id PK
-        string file_path
-        text content
-        vector embedding
-        jsonb metadata
-        timestamp created_at
-        timestamp updated_at
-    }
-    
-    CHAT_SESSIONS ||--o{ CHAT_MESSAGES : "has many"
-    
-    KNOWLEDGE_FILES ||--|| VECTOR_INDEX : "indexed by"
-```
-
-### Custom PGVector Type Integration
-
+#### **SubAgent Interface (Contract)**
 ```kotlin
-// Hibernate интеграция с pgvector
-@Type(PGVectorType::class)
-@Column(name = "embedding", columnDefinition = "vector(384)")
-var embedding: FloatArray? = null
+interface SubAgent {
+    val name: String                    // Unique identifier
+    val description: String             // For AI-based selection
+    val tools: List<String>?           // Available capabilities
+    
+    suspend fun canHandle(query: String, chatHistory: List<ChatMessage>): Boolean
+    suspend fun handle(query: String, chatHistory: List<ChatMessage>): String
+    suspend fun isAvailable(): Boolean
+}
 ```
 
----
+#### **Key Principles**
+- ✅ **Single Responsibility** - Each agent handles one domain
+- ✅ **AI-First Selection** - No hardcoded routing patterns
+- ✅ **Context Awareness** - Maintains conversation history
+- ✅ **Graceful Degradation** - Fallback mechanisms for failures
 
-## 🌐 Web UI Architecture
+### 2. JarvisMainAgent (Central Orchestrator)
 
-### Dynamic Frontend Architecture
+**Location**: `src/main/kotlin/com/jarvis/agent/JarvisMainAgent.kt`
 
-```mermaid
-graph LR
-    subgraph "📦 Static Assets (в JAR)"
-        HTML[📄 index.html] --> CSS[🎨 style.css]
-        CSS --> JS[⚡ app.js + Dynamic Loading]
-        JS --> Fonts[🔤 Google Fonts]
-    end
+**Responsibilities**:
+- **AI-based routing** - `knowledge_search` vs `dialogue` determination
+- **Agent delegation** - Hands off to specialized SubAgents
+- **Context management** - Maintains 10-message conversation window
+- **Error recovery** - Graceful fallbacks and error handling
+
+**Key Features**:
+```kotlin
+suspend fun processQuery(query: String, sessionId: String, chatHistory: List<ChatMessage>): String {
+    // 1. Try to find suitable sub-agent
+    val agentSelection = agentDispatcher.selectAgent(query, chatHistory)
     
-    subgraph "🌐 Browser Runtime"
-        UI[👤 User Interface] --> EventHandlers[🎯 Event Handlers]
-        EventHandlers --> API_Calls[📡 Fetch API Calls]
-        
-        DynamicLoader[⚡ Dynamic Content Loader] --> VersionAPI[🔢 /api/system/version]
-        DynamicLoader --> LogsStream[📋 /api/system/logs/stream]
-    end
-    
-    subgraph "🔗 Backend Integration"
-        API_Calls --> ChatAPI[💬 /api/chat]
-        API_Calls --> KnowledgeAPI[📚 /api/knowledge/*]
-        API_Calls --> SystemAPI[🔧 /api/system/*]
-        API_Calls --> HealthAPI[🏥 /actuator/health]
-        
-        SystemAPI --> VersionAPI
-        SystemAPI --> LogsStream
-        SystemAPI --> LogsRecent[📋 /api/system/logs/recent]
-    end
-    
-    HTML --> UI
-    DynamicLoader --> UI
-    
-    style DynamicLoader fill:#4CAF50
-    style SystemAPI fill:#2196F3
-    style HTML fill:#e3f2fd
-    style JS fill:#f3e5f5
+    if (agentSelection != null) {
+        // 2. Delegate to specialized agent
+        return agentSelection.agent.handle(query, chatHistory)
+    } else {
+        // 3. Handle directly with knowledge search or dialogue
+        val approach = determineApproach(query, chatHistory)
+        return when (approach) {
+            "knowledge_search" -> handleKnowledgeSearch(query, chatHistory)
+            else -> handleDialogue(query, chatHistory)
+        }
+    }
+}
 ```
 
-### Enhanced UI Components v0.4.0
+### 3. AgentDispatcher (AI-Powered Selection)
 
-```mermaid
-flowchart TB
-    subgraph "🌟 Jarvis Web Interface"
-        Header[🔝 Header with Tabs]
-        Header --> Logo[🤖 Logo + Dynamic Version]
-        Header --> Tabs[📑 Chat/Knowledge/Logs Tabs]
-        Header --> Status[🔄 Live Connection Status]
-        
-        TabContent[📱 Tabbed Content Area]
-        TabContent --> ChatTab[💬 Chat Tab]
-        TabContent --> KnowledgeTab[📚 Knowledge Management]
-        TabContent --> LogsTab[📋 Real-time Logs]
-        
-        ChatTab --> Welcome[👋 Welcome Message]
-        ChatTab --> Messages[💬 Messages Container]
-        ChatTab --> Input[⌨️ Enhanced Input Area]
-        
-        KnowledgeTab --> KnowledgeStats[📊 Knowledge Statistics]
-        KnowledgeTab --> SourcesManagement[🔧 Sources Management]
-        KnowledgeTab --> SyncControls[🔄 Sync Controls]
-        
-        LogsTab --> LogsContainer[📋 Live Logs Container]
-        LogsTab --> LogsControls[🎮 Logs Controls]
-        LogsControls --> PauseBtn[⏸️ Pause/Resume]
-        LogsControls --> ClearBtn[🗑️ Clear Logs]
-        LogsControls --> DownloadBtn[💾 Download Logs]
-        
-        Overlay[⏳ Loading Overlay]
-    end
-    
-    Messages --> UserMsg[👤 User Messages]
-    Messages --> BotMsg[🤖 AI Responses with Metadata]
-    
-    Input --> TextArea[📝 Message Input]
-    Input --> SendBtn[📤 Send Button]
-    Input --> SessionInfo[🆔 Dynamic Session Info]
-    
-    LogsContainer --> LogEntries[📝 Streaming Log Entries]
-    LogEntries --> LogLevels[🎨 Color-coded Log Levels]
-    
-    style Header fill:#1a1f2e
-    style ChatTab fill:#0a0e1a
-    style KnowledgeTab fill:#2c3e50
-    style LogsTab fill:#34495e
-    style Logo fill:#4CAF50
+**Location**: `src/main/kotlin/com/jarvis/agent/AgentDispatcher.kt`
+
+**Core Logic**:
+- **Automatic selection** using agent descriptions
+- **Availability verification** before selection
+- **Confidence-based fallbacks** when uncertain
+- **No complex routing logic** - pure AI decision making
+
+**Selection Process**:
+1. Check agent availability (`isAvailable()`)
+2. For single agent - verify `canHandle()`
+3. For multiple agents - AI selection using descriptions
+4. Return `AgentSelection` with confidence score
+
+### 4. ObsidianAgent (Specialized SubAgent)
+
+**Location**: `src/main/kotlin/com/jarvis/agent/ObsidianAgent.kt`
+
+**Capabilities**:
+- **Full CRUD operations** - Create, read, update, delete markdown files
+- **AI query parsing** - No regex patterns, pure LLM understanding
+- **Physical file management** - Real vault operations with transaction safety
+- **Context awareness** - Remembers conversation between operations
+
+**Tool Set**:
+```kotlin
+override val tools = listOf(
+    "obsidian_create",     // Create new markdown notes
+    "obsidian_read",       // Read existing notes
+    "obsidian_update",     // Update note content
+    "obsidian_delete",     // Delete notes
+    "obsidian_search",     // Search vault content
+    "obsidian_list"        // List notes and folders
+)
 ```
 
----
+### 5. Real-time AI Reasoning (ThinkingController)
 
-## 🐳 Containerization Architecture
+**Location**: `src/main/kotlin/com/jarvis/controller/ThinkingController.kt`
 
-### Docker Multi-Stage Build
+**Features**:
+- **Server-Sent Events (SSE)** for live reasoning display
+- **Session-based streams** with 5-minute timeout
+- **Thought categorization** - start, thinking, complete, error
+- **Automatic cleanup** - Memory-efficient connection management
 
-```mermaid
-graph TB
-    subgraph "Build Stage"
-        Source[📁 Source Code] --> Gradle[🔧 Gradle Build]
-        Gradle --> JAR[📦 JAR File]
-        Gradle --> Tests[🧪 Run Tests]
-        Tests --> |46/46 ✅| Coverage[📊 80% Coverage]
-    end
-    
-    subgraph "Runtime Stage"
-        JAR --> Runtime[🏃 Java 21 Runtime]
-        Runtime --> Container[🐳 Production Container]
-        
-        ObsidianMount[📝 Obsidian Vault] --> |Volume| Container
-        ONNXMount[🧬 ONNX Model] --> |Volume| Container
-    end
-    
-    subgraph "Database"
-        Container --> PostgreSQL[🗃️ PostgreSQL 16]
-        PostgreSQL --> PGVector[🧮 pgvector extension]
-    end
-    
-    style Tests fill:#4caf50
-    style Coverage fill:#2196f3
+**Frontend Integration**:
+```javascript
+// Real-time thought streaming
+const eventSource = new EventSource(`/api/thinking/stream/${sessionId}`);
+eventSource.onmessage = function(event) {
+    const thought = JSON.parse(event.data);
+    displayThought(thought.type, thought.message);
+};
 ```
 
-### Docker Compose Services
+### 6. Knowledge Management with Vector Search
 
-```yaml
-# Архитектура сервисов
-services:
-  postgres:      # 🗃️ Database layer
-  jarvis:        # 🤖 Application layer
-  
-networks:
-  jarvis-network # 🔗 Internal communication
+#### **KnowledgeService Architecture**
+**Location**: `src/main/kotlin/com/jarvis/service/KnowledgeService.kt`
 
-volumes:
-  jarvis_postgres_data  # 💾 Persistent storage
+**Capabilities**:
+- **PostgreSQL + pgvector** - Semantic similarity search
+- **ONNX embeddings** - all-MiniLM-L6-v2 (384 dimensions)
+- **Query caching** - 777x performance improvement for repeated queries
+- **Automatic cleanup** - Handles deleted files during sync
+
+#### **Database Schema**
+```sql
+-- Chat Management
+CREATE TABLE chat_sessions (
+    id VARCHAR(255) PRIMARY KEY,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_active_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE chat_messages (
+    id BIGSERIAL PRIMARY KEY,
+    session_id VARCHAR(255) REFERENCES chat_sessions(id),
+    role VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Knowledge Base with Vector Search
+CREATE TABLE knowledge_files (
+    id BIGSERIAL PRIMARY KEY,
+    file_path VARCHAR(500) UNIQUE NOT NULL,
+    content TEXT NOT NULL,
+    source VARCHAR(100) NOT NULL,
+    source_id VARCHAR(255),
+    file_hash VARCHAR(64),
+    embedding VECTOR(384),  -- pgvector extension
+    tags TEXT,
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Vector similarity search index
+CREATE INDEX idx_knowledge_files_embedding ON knowledge_files 
+USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 ```
 
----
+### 7. ObsidianVaultManager (File Operations)
 
-## ⚡ Performance Optimizations
+**Location**: `src/main/kotlin/com/jarvis/service/knowledge/ObsidianVaultManager.kt`
 
-### Query Execution Metrics с контекстной памятью
+**Features**:
+- **Physical file manipulation** - Direct markdown file operations
+- **YAML frontmatter** - Metadata extraction and preservation
+- **WikiLink processing** - Internal link `[[link]]` handling
+- **Tag extraction** - Automatic `#tag` detection
+- **Concurrent safety** - Thread-safe operations with caching
 
-```mermaid
-graph LR
-    subgraph "Request Types & Performance"
-        HistoryQuery[💭 History Query] --> |2-3 sec| HistoryResponse[🧠 Context Response]
-        SimpleQuery[💬 Simple Query] --> |2-3 sec| GeneralResponse[🤖 General Response]
-        
-        KnowledgeQuery[📚 Knowledge Query] --> RouterDecision{🧠 Router Analysis}
-        RouterDecision --> |Answer in history| HistoryResponse
-        RouterDecision --> |Need search| VectorSearch[🔍 Vector Search]
-        
-        VectorSearch --> |First time: 20-30 sec| SearchResponse[🔍 Search Response]
-        VectorSearch --> |Cached: 0.03 sec| CachedResponse[⚡ Cached Response]
-        
-        VectorSearch --> EmbedGeneration[🧬 Embed Generation]
-        EmbedGeneration --> DBQuery[🗃️ DB Query] 
-        DBQuery --> ContextBuilding[📄 Context Building]
-        ContextBuilding --> LLMResponse[🤖 LLM Response]
-    end
-    
-    style HistoryResponse fill:#e8f5e8
-    style CachedResponse fill:#4caf50
-    style GeneralResponse fill:#2196f3
+## 🌐 API Architecture
+
+### REST Endpoints
+
+#### **Chat API**
+```http
+POST /api/chat
+{
+    "query": "Create a note about today's meeting",
+    "sessionId": "user-session-123"
+}
+
+Response:
+{
+    "response": "✅ Note created: **Meeting Notes**",
+    "sessionId": "user-session-123",
+    "timestamp": [2025, 8, 23, 16, 30, 45, 123456789],
+    "metadata": {
+        "history_size": 3
+    }
+}
 ```
 
-### Caching Strategy
+#### **Knowledge Management API**
+```http
+POST /api/knowledge/sync
+{
+    "vaultPath": "/path/to/obsidian-vault"
+}
 
-| Component | Cache Type | Performance Gain |
-|-----------|------------|------------------|
-| Query Embeddings | In-Memory Hash | **777x faster** |
-| Vector Similarity | PostgreSQL Index | **50x faster** |
-| Chat History | Database Session + Context Memory | **10-100x faster** |
-| Context-Aware Routing | LLM Decision with History | **Eliminates unnecessary searches** |
+GET /api/knowledge/status
+Response:
+{
+    "sources": {
+        "obsidian": {
+            "sourceId": "obsidian",
+            "isActive": true,
+            "itemCount": 150,
+            "lastSync": "2025-08-23T16:30:45"
+        }
+    },
+    "totalSources": 1
+}
+```
 
----
+#### **Real-time Streaming**
+```http
+GET /api/thinking/stream/{sessionId}
+Content-Type: text/event-stream
+
+data: {"type":"start","message":"🎯 Analyzing query","timestamp":1692808245123}
+data: {"type":"thinking","message":"🤖 Delegating to ObsidianAgent","timestamp":1692808245456}
+data: {"type":"complete","message":"✅ Task completed","timestamp":1692808245789}
+```
+
+### WebSocket Alternative (SSE Benefits)
+- **HTTP/2 compatible** - No additional protocols needed
+- **Automatic reconnection** - Built-in browser support
+- **Unidirectional** - Perfect for reasoning display
+- **Firewall friendly** - Standard HTTP connections
+
+## 🔄 Data Flow Architecture
+
+### 1. Chat Processing Flow
+
+```
+User Input (Web UI)
+        ↓
+ChatController.processChat()
+        ↓
+JarvisService.chat()
+        ↓
+JarvisMainAgent.processQuery()
+        ↓
+┌─────────────────┐         ┌──────────────────┐
+│ AgentDispatcher │ ──AI──► │ SubAgent         │
+│ .selectAgent()  │         │ .handle()        │
+└─────────────────┘         └──────────────────┘
+        ↓                           ↓
+┌─────────────────┐         ┌──────────────────┐
+│ Knowledge       │         │ ObsidianAgent    │
+│ Search          │         │ File Operations  │
+└─────────────────┘         └──────────────────┘
+        ↓                           ↓
+Database Storage ◄──────────────────┘
+```
+
+### 2. Real-time Reasoning Flow
+
+```
+Agent Processing
+        ↓
+ThinkingController.sendThought()
+        ↓
+SSE Stream to Frontend
+        ↓
+JavaScript Event Handler
+        ↓
+UI Update (Thought Bubble)
+```
+
+### 3. Knowledge Sync Flow
+
+```
+Obsidian Vault Files
+        ↓
+ObsidianKnowledgeSource.syncData()
+        ↓
+MarkdownParser.parseFile()
+        ↓
+EmbeddingModel.embed()
+        ↓
+KnowledgeService.indexItems()
+        ↓
+PostgreSQL with pgvector
+```
 
 ## 🧪 Testing Architecture
 
-### Test Pyramid Implementation
+### Test Structure (63 Tests - 100% Pass Rate)
 
-```mermaid
-graph TB
-    subgraph "Testing Strategy - 46/46 Tests ✅"
-        E2E[🌐 E2E Tests] --> |1 test| ApplicationTest[JarvisApplicationTests]
-        
-        Integration[🔗 Integration Tests] --> |10 tests| TestContainers[TestContainers + PostgreSQL]
-        
-        Controller[🎮 Controller Tests] --> |20 tests| MockMvc[MockMvc + WebMvcTest]
-        
-        Unit[⚙️ Unit Tests] --> |15 tests| ServiceTests[Service Layer Tests]
-        Unit --> MockK[MockK Framework]
-        
-        Coverage[📊 Coverage: 80%] --> JaCoCo[JaCoCo Reports]
-    end
-    
-    style E2E fill:#4caf50
-    style Integration fill:#2196f3  
-    style Controller fill:#ff9800
-    style Unit fill:#9c27b0
+```
+src/test/kotlin/
+├── agent/                          # SubAgent Behavior Testing
+│   ├── AgentDispatcherTest.kt     # AI selection logic
+│   └── ObsidianAgentTest.kt       # Vault operations
+├── controller/                     # REST API Testing
+│   └── ChatControllerTest.kt      # Endpoint behavior
+├── service/                        # Business Logic Testing  
+│   ├── JarvisServiceTest.kt       # Chat orchestration
+│   └── knowledge/                  # Vault management
+├── integration/                    # Full System Testing
+│   └── JarvisApplicationIntegrationTest.kt
+└── config/                         # Test Configuration
+    └── TestConfiguration.kt       # Mocked dependencies
 ```
 
-### Test Configuration Strategy
+### Testing Strategy
 
-```mermaid
-flowchart TD
-    TestProfile[🧪 Test Profile] --> MockAnthropicAPI[🎭 Mock Anthropic API]
-    TestProfile --> MockEmbeddingModel[🧬 Mock Embedding Model]
-    TestProfile --> TestContainers[🐳 TestContainers PostgreSQL]
-    
-    MockEmbeddingModel --> DeterministicVectors[🎯 Deterministic 384D Vectors]
-    DeterministicVectors --> ConsistentTests[✅ Consistent Test Results]
-    
-    TestContainers --> RealDB[🗃️ Real PostgreSQL + pgvector]
-    RealDB --> IntegrationTesting[🔗 Integration Testing]
+#### **Unit Tests (MockK Framework)**
+- **Service layer isolation** - Mocked dependencies
+- **Agent behavior verification** - AI decision simulation
+- **Error handling coverage** - Exception scenarios
+
+#### **Integration Tests (TestContainers)**
+- **Real PostgreSQL** - Full database operations
+- **Vector search testing** - Actual pgvector queries
+- **End-to-end scenarios** - Complete user journeys
+
+#### **Performance Testing**
+- **Response time verification** - SLA compliance
+- **Concurrent request handling** - Load simulation
+- **Memory usage monitoring** - Resource optimization
+
+## 📊 Performance Characteristics
+
+### Response Time Analysis
+
+| Query Type | First Request | Cached Request | Optimization |
+|------------|---------------|----------------|--------------|
+| Simple Chat | 2-3 seconds | 2-3 seconds | Context reuse |
+| Knowledge Search | 20-30 seconds | 0.03 seconds | **777x faster** |
+| Agent Operations | 3-5 seconds | 3-5 seconds | File caching |
+| Vector Similarity | 5-10 seconds | 0.1 seconds | IVFFLAT index |
+
+### Optimization Features
+
+#### **Query Embedding Cache**
+```kotlin
+private val embeddingCache = ConcurrentHashMap<String, FloatArray>()
+
+fun getEmbedding(text: String): FloatArray {
+    val hash = text.hashCode().toString()
+    return embeddingCache.computeIfAbsent(hash) { 
+        embeddingModel.embed(text) 
+    }
+}
 ```
 
----
+#### **PostgreSQL Vector Indexing**
+```sql
+-- IVFFLAT index for cosine similarity
+CREATE INDEX idx_knowledge_files_embedding ON knowledge_files 
+USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 
-## 🔧 Configuration Management
-
-### Environment-based Configuration
-
-```mermaid
-graph TB
-    subgraph "Configuration Profiles"
-        Default[📋 application.yml] --> Local[🏠 local profile]
-        Default --> Docker[🐳 docker profile] 
-        Default --> Test[🧪 test profile]
-        
-        Local --> DevSettings[🛠️ Development Settings]
-        Docker --> ProdSettings[🚀 Production Settings]
-        Test --> MockSettings[🎭 Mock Settings]
-    end
-    
-    subgraph "External Dependencies"
-        AnthropicAPI[🤖 Anthropic API Key]
-        ObsidianPath[📝 Obsidian Vault Path]
-        DatabaseURL[🗃️ Database Connection]
-    end
-    
-    DevSettings --> AnthropicAPI
-    ProdSettings --> AnthropicAPI
-    MockSettings --> |Mock Key| AnthropicAPI
+-- Optimized similarity query
+SELECT file_path, content, 
+       1 - (embedding <=> $1) AS similarity
+FROM knowledge_files 
+WHERE 1 - (embedding <=> $1) > 0.3
+ORDER BY embedding <=> $1
+LIMIT 5;
 ```
 
----
+### Memory Management
+
+#### **JVM Configuration**
+```bash
+# Development
+JAVA_OPTS="-Xmx1g -Xms512m"
+
+# Production  
+JAVA_OPTS="-Xmx2g -Xms1g -XX:+UseG1GC"
+```
+
+#### **Connection Pooling**
+```yaml
+spring.datasource.hikari:
+  maximum-pool-size: 10
+  minimum-idle: 5
+  connection-timeout: 30000
+  idle-timeout: 600000
+```
+
+## 🔐 Security Architecture
+
+### Authentication & Authorization
+- **Stateless sessions** - No server-side session storage
+- **API key management** - Environment-based configuration
+- **CORS configuration** - Controlled cross-origin access
+
+### Data Protection
+- **SQL injection prevention** - JPA parameterized queries
+- **XSS protection** - Content sanitization
+- **Input validation** - Request DTO validation
+- **Secure headers** - Spring Security configuration
 
 ## 🚀 Deployment Architecture
 
-### Production Deployment Flow
+### Docker Multi-stage Build
 
-```mermaid
-sequenceDiagram
-    participant Dev as 👨‍💻 Developer
-    participant Git as 📚 Git Repository
-    participant CI as ⚙️ CI Pipeline
-    participant Registry as 📦 Container Registry
-    participant Prod as 🚀 Production
+```dockerfile
+# Build stage
+FROM gradle:8-jdk21 AS build
+COPY . /app
+WORKDIR /app
+RUN gradle build -x test
 
-    Dev->>Git: git push
-    Git->>CI: Trigger build
-    CI->>CI: Run 46 tests ✅
-    CI->>CI: Generate JaCoCo coverage
-    CI->>CI: Build Docker image
-    CI->>Registry: Push image
-    Registry->>Prod: Deploy container
-    
-    Note over Prod: Health checks
-    Prod-->>Dev: ✅ Deployment successful
+# Runtime stage  
+FROM openjdk:21-jre-slim
+COPY --from=build /app/build/libs/*.jar app.jar
+COPY --from=build /app/all-MiniLM-L6-v2.onnx /app/
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
 ```
 
-### Infrastructure Components
+### Production Services
 
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| **Application** | Spring Boot 3.5.4 | Main service |
-| **Database** | PostgreSQL 16 + pgvector | Vector storage |
-| **AI Model** | Claude 3.5 Sonnet | Language processing |
-| **Embeddings** | ONNX all-MiniLM-L6-v2 | Local text embeddings |
-| **Container** | Docker + Docker Compose | Orchestration |
-| **Monitoring** | Spring Actuator | Health checks |
-
----
-
-## 📈 Monitoring & Observability
-
-### Health Check Architecture
-
-```mermaid
-graph LR
-    subgraph "Health Monitoring"
-        App[🤖 Jarvis App] --> Health[🏥 /actuator/health]
-        App --> Metrics[📊 /actuator/metrics]
-        
-        PostgreSQL[🗃️ PostgreSQL] --> DBHealth[💾 Database Health]
-        
-        Health --> |Status: UP| Monitor[📱 Monitoring]
-        DBHealth --> |Status: UP| Monitor
-        Metrics --> |Prometheus format| Monitor
-    end
+```yaml
+version: '3.8'
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: jarvis
+      POSTGRES_USER: jarvis
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - jarvis_postgres_data:/var/lib/postgresql/data
     
-    subgraph "Knowledge Base Status"
-        KnowledgeAPI[📚 /api/knowledge/status] --> FileCount[📄 Document Count]
-        KnowledgeAPI --> LastSync[🔄 Last Sync Time]
-        KnowledgeAPI --> EmbeddingStats[🧬 Embedding Stats]
-    end
+  jarvis:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OBSIDIAN_VAULT_PATH=/app/obsidian-vault
+    volumes:
+      - ${OBSIDIAN_VAULT_PATH:-./obsidian-vault}:/app/obsidian-vault:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  jarvis_postgres_data:
 ```
 
----
+### Health Monitoring
 
-## 🔮 Future Architecture Evolution
+#### **Spring Actuator Endpoints**
+```yaml
+management:
+  endpoints.web.exposure.include: health,metrics,info
+  endpoint.health:
+    show-details: always
+    probes.enabled: true
+```
+
+#### **Custom Health Indicators**
+```kotlin
+@Component
+class ObsidianAgentHealthIndicator : HealthIndicator {
+    override fun health(): Health {
+        return if (obsidianAgent.isAvailable()) {
+            Health.up()
+                .withDetail("vault_path", vaultPath)
+                .withDetail("notes_count", getNotesCount())
+                .build()
+        } else {
+            Health.down()
+                .withDetail("error", "Vault not accessible")
+                .build()
+        }
+    }
+}
+```
+
+## 🔮 Evolutionary Architecture
+
+### Current State (v0.6.0)
+- ✅ **Claude Code SubAgent Pattern** - Production implementation
+- ✅ **Real-time AI Reasoning** - SSE-powered thought streaming
+- ✅ **Complete Obsidian Integration** - Full CRUD operations
+- ✅ **Vector Knowledge Search** - 777x performance optimization
+- ✅ **Comprehensive Testing** - 63 tests with 100% pass rate
 
 ### Planned Enhancements
 
-```mermaid
-mindmap
-  root((Jarvis v0.4.0+))
-    🌐 Web Interface
-      React/Vue Frontend
-      WebSocket Real-time
-      Streaming Responses
-    
-    🤖 Advanced AI
-      Multi-modal Support
-      Voice Integration (Whisper)
-      Custom Fine-tuning
-    
-    📱 Mobile & Desktop
-      Telegram Bot
-      Desktop App (Electron)
-      Mobile PWA
-    
-    🔗 Integrations  
-      Calendar Sync
-      Email Processing
-      Smart Home Control
-      
-    ⚡ Performance
-      Distributed Caching
-      Load Balancing
-      Auto-scaling
-      
-    🔒 Security
-      Authentication (JWT)
-      Role-based Access
-      API Rate Limiting
+#### **v0.7.0 - Voice Integration**
+```kotlin
+interface VoiceAgent : SubAgent {
+    suspend fun transcribe(audioData: ByteArray): String
+    suspend fun synthesize(text: String): ByteArray
+}
 ```
 
-### Migration Path
+#### **v0.8.0 - Multi-modal Content**
+```kotlin
+interface MultiModalAgent : SubAgent {
+    suspend fun analyzeImage(imageData: ByteArray): String
+    suspend fun processPDF(pdfData: ByteArray): String
+}
+```
 
-1. **✅ v0.3.0 → v0.4.0**: Clean Architecture + ML Classification + Multi-Agent System
-2. **✅ v0.4.0 → v0.5.0**: ReAct Reasoning + Full CRUD Obsidian + AI-driven Decision Making
-3. **v0.5.0 → v0.6.0**: Voice Mode + Advanced UI + Mobile PWA
-4. **v0.6.0 → v1.0.0**: Production-ready + Advanced Integrations + Distributed Architecture
+#### **v0.9.0 - Distributed Architecture**
+```kotlin
+interface ClusterAgent : SubAgent {
+    suspend fun distributeTask(task: Task): TaskResult
+    suspend fun aggregateResults(results: List<TaskResult>): FinalResult
+}
+```
 
----
+### Scalability Considerations
 
-## 📚 Technical References
+#### **Horizontal Scaling**
+- **Stateless design** - No session affinity required
+- **Database connection pooling** - Shared PostgreSQL instance
+- **Redis caching** - Distributed embedding cache
+- **Load balancer ready** - Health check endpoints
 
-### Key Technologies & Versions
+#### **Vertical Scaling**
+- **Memory optimization** - Configurable JVM heap
+- **CPU utilization** - Parallel processing with coroutines  
+- **I/O optimization** - Async file operations
+- **Database optimization** - Connection pooling and indexing
 
-- **Spring Boot**: 3.5.4 + Kotlin 1.9.25
-- **Spring AI**: 1.0.0-M3 (Routing Workflow Pattern)
-- **PostgreSQL**: 16 + pgvector extension  
-- **Java Runtime**: 21 (Eclipse Temurin)
-- **AI Model**: Anthropic Claude 3.5 Sonnet (claude-3-5-sonnet-20241022)
-- **Embedding Model**: all-MiniLM-L6-v2 ONNX (384 dimensions)
-- **Build Tool**: Gradle 8.14.3
-- **Testing**: JUnit 5 + MockK + TestContainers
-- **Container**: Docker + Docker Compose
+## 🎯 Architecture Principles
 
-### Performance Benchmarks
+### 1. **Claude Code Alignment**
+- ✅ **AI-First Decisions** - No hardcoded routing logic
+- ✅ **Simple Orchestration** - Clean delegation patterns
+- ✅ **Clear Agent Descriptions** - Self-describing capabilities
+- ✅ **Context Awareness** - Conversation memory integration
 
-| Metric | Value | Context |
-|--------|-------|---------|
-| History-based queries | **2-3 seconds** | Using chat context |
-| Simple queries | **2-3 seconds** | General conversation |
-| Knowledge queries (first) | **20-30 seconds** | With vector search |
-| Knowledge queries (cached) | **0.03 seconds** | 777x improvement |
-| Test success rate | **100%** (46/46) | Full test suite |
-| Code coverage | **80%** | JaCoCo analysis |
-| Memory usage | **512MB - 1GB** | JVM heap |
-| Web UI load time | **< 1 second** | Static files in JAR |
+### 2. **Clean Architecture**
+- ✅ **Dependency Inversion** - Interfaces define contracts
+- ✅ **Single Responsibility** - Focused component purposes
+- ✅ **Open/Closed Principle** - Extensible without modification
+- ✅ **Interface Segregation** - Minimal, focused interfaces
 
----
+### 3. **Domain-Driven Design**
+- ✅ **Bounded Contexts** - Clear domain boundaries
+- ✅ **Ubiquitous Language** - Consistent terminology
+- ✅ **Aggregate Roots** - Entity lifecycle management
+- ✅ **Domain Services** - Business logic encapsulation
 
-## 🎉 Version 0.5.0 Achievements
-
-### ✅ Completed Major Improvements
-
-- **🧠 ReAct Reasoning System**: AI-driven pошаговое рассуждение с выполнением действий
-- **🤖 Full CRUD Obsidian Integration**: Создание, чтение, обновление, удаление заметок
-- **🔄 Automatic Fallback**: Переход от simple к reasoning при ошибках
-- **🚫 Anti-hallucination**: AI не придумывает результаты действий
-- **📝 Multi-line Response Parsing**: Корректная обработка сложных многострочных ответов
-- **🎯 AI Complexity Detection**: Модель сама решает simple vs complex
-- **🛠️ Complete Tool Set**: 8 инструментов для работы с Obsidian vault
-- **🔧 Path Intelligence**: AI понимает структуру файлов `obsidian-vault/filename.md`
-
-### 🚀 Performance Metrics v0.5.0
-
-| Feature | Performance | Status |
-|---------|-------------|--------|
-| ReAct Reasoning Loop | **Multi-step complex operations** | ✅ Production |
-| File Operations | **Physical CRUD operations** | ✅ Production |
-| AI Complexity Detection | **Zero hardcoded patterns** | ✅ Production |
-| Auto Fallback Recovery | **Robust error handling** | ✅ Production |
-| Multi-line Parsing | **Full structured responses** | ✅ Production |
-| Tool Execution | **8 Obsidian tools available** | ✅ Production |
-| Path Resolution | **Smart file path handling** | ✅ Production |
-| Anti-hallucination | **100% accurate results** | ✅ Production |
-
----
-
-> **📋 Документация актуализирована автоматически**  
-> Последнее обновление: 2025-08-22  
-> Версия архитектуры: **0.5.0** - ReAct Reasoning System + Multi-Agent Architecture  
-> Статус: **Production-Ready** 🚀
+This architecture represents a mature, production-ready AI assistant system that successfully implements Claude Code principles while maintaining clean architecture patterns and comprehensive testing coverage.

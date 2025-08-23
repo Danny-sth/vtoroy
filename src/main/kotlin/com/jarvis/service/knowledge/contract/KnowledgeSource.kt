@@ -1,57 +1,58 @@
 package com.jarvis.service.knowledge.contract
 
 /**
- * Interface for pluggable knowledge sources
- * Each implementation represents a different knowledge provider (Obsidian, Notion, etc.)
+ * Knowledge Source interface - аналог MCP Server в Claude Code
+ * Каждый источник данных реализует этот интерфейс для синхронизации с векторной БД
  */
 interface KnowledgeSource {
     /**
-     * Unique identifier for this knowledge source
+     * Уникальный ID источника (obsidian, notion, etc.)
      */
     val sourceId: String
     
     /**
-     * Human-readable name for this source
+     * Человеко-читаемое название источника
      */
-    val sourceName: String
+    val displayName: String
     
     /**
-     * Sync knowledge from this source
-     * @param config Configuration specific to this source (e.g., vault path, API key, etc.)
-     * @return List of knowledge items ready to be processed
+     * Проверяет доступность источника
      */
-    suspend fun sync(config: Map<String, Any>): List<KnowledgeItem>
+    suspend fun isAvailable(): Boolean
     
     /**
-     * Check if this source is available and properly configured
+     * Синхронизирует данные из источника
+     * Возвращает список элементов знаний для индексации
      */
-    fun isAvailable(): Boolean
+    suspend fun syncData(): List<KnowledgeItem>
     
     /**
-     * Get source-specific status information
+     * Получает статус источника
      */
-    fun getStatus(): SourceStatus
+    suspend fun getStatus(): KnowledgeSourceStatus
 }
 
 /**
- * Represents a single piece of knowledge from any source
+ * Элемент знаний из источника
  */
 data class KnowledgeItem(
-    val id: String,           // Unique ID within the source
-    val title: String,         // Document title
-    val content: String,       // Cleaned text content
-    val metadata: Map<String, Any>? = null,  // Source-specific metadata
-    val tags: List<String> = emptyList(),    // Tags/categories
-    val lastModified: Long = System.currentTimeMillis()
+    val id: String,                    // Уникальный ID в рамках источника
+    val title: String,                 // Заголовок/название
+    val content: String,               // Текстовое содержимое
+    val sourceId: String,              // ID источника
+    val sourcePath: String,            // Путь в источнике (файл, URL, etc.)
+    val lastModified: Long,            // Timestamp последнего изменения
+    val metadata: Map<String, Any> = emptyMap()  // Дополнительные метаданные
 )
 
 /**
- * Status information for a knowledge source
+ * Статус источника знаний
  */
-data class SourceStatus(
+data class KnowledgeSourceStatus(
     val sourceId: String,
     val isActive: Boolean,
-    val lastSyncTime: Long? = null,
+    val lastSync: Long? = null,
     val itemCount: Int = 0,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val syncInProgress: Boolean = false
 )

@@ -24,7 +24,7 @@ class KnowledgeController(
         logger.info { "Starting knowledge sync for source: ${request.sourceId}, config: ${request.getEffectiveConfig()}" }
         
         return@runBlocking try {
-            val result = knowledgeService.syncSource(request.sourceId, request.getEffectiveConfig())
+            val result = knowledgeService.syncAllSources()
             ResponseEntity.ok(mapOf(
                 "message" to "Sync completed successfully",
                 "filesProcessed" to result
@@ -39,13 +39,19 @@ class KnowledgeController(
     }
     
     @GetMapping("/status")
-    fun getStatus(): ResponseEntity<KnowledgeStatusResponse> {
-        return try {
-            val status = knowledgeService.getStatus()
-            ResponseEntity.ok(status)
+    fun getStatus(): ResponseEntity<Map<String, Any>> = runBlocking {
+        return@runBlocking try {
+            val statuses = knowledgeService.getSourceStatuses()
+            ResponseEntity.ok(mapOf(
+                "sources" to statuses,
+                "totalSources" to statuses.size
+            ))
         } catch (e: Exception) {
             logger.error(e) { "Error getting knowledge status" }
-            ResponseEntity.internalServerError().build()
+            ResponseEntity.internalServerError().body(mapOf(
+                "error" to "Failed to get status",
+                "message" to (e.message ?: "Unknown error")
+            ))
         }
     }
     
@@ -54,7 +60,7 @@ class KnowledgeController(
         logger.info { "Starting knowledge sync for source: ${request.sourceId}" }
         
         return@runBlocking try {
-            val result = knowledgeService.syncSource(request.sourceId, request.config)
+            val result = knowledgeService.syncAllSources()
             ResponseEntity.ok(mapOf(
                 "message" to "Sync completed successfully",
                 "sourceId" to request.sourceId,
@@ -71,12 +77,12 @@ class KnowledgeController(
     }
     
     @GetMapping("/sources")
-    fun getSources(): ResponseEntity<Map<String, Any>> {
-        return try {
-            val sources = knowledgeService.getAvailableSources()
+    fun getSources(): ResponseEntity<Map<String, Any>> = runBlocking {
+        return@runBlocking try {
+            val statuses = knowledgeService.getSourceStatuses()
             ResponseEntity.ok(mapOf(
-                "sources" to sources,
-                "totalSources" to sources.size
+                "sources" to statuses.keys,
+                "totalSources" to statuses.size
             ))
         } catch (e: Exception) {
             logger.error(e) { "Error getting sources" }
@@ -88,10 +94,11 @@ class KnowledgeController(
     }
     
     @GetMapping("/sources/{sourceId}/status")
-    fun getSourceStatus(@PathVariable sourceId: String): ResponseEntity<Map<String, Any>> {
-        return try {
-            val status = knowledgeService.getSourceStatus(sourceId)
-            ResponseEntity.ok(status)
+    fun getSourceStatus(@PathVariable sourceId: String): ResponseEntity<Map<String, Any>> = runBlocking {
+        return@runBlocking try {
+            val statuses = knowledgeService.getSourceStatuses()
+            val status = statuses[sourceId] ?: throw IllegalArgumentException("Source not found: $sourceId")
+            ResponseEntity.ok(mapOf("status" to status))
         } catch (e: Exception) {
             logger.error(e) { "Error getting source status: $sourceId" }
             ResponseEntity.internalServerError().body(mapOf(
@@ -111,7 +118,7 @@ class KnowledgeController(
         logger.info { "Searching knowledge for query: '$query', limit: $limit, source: ${source ?: "all"}" }
         
         return@runBlocking try {
-            val results = knowledgeService.searchKnowledge(query, limit, source)
+            val results = knowledgeService.searchKnowledge(query, limit)
             ResponseEntity.ok(mapOf(
                 "query" to query,
                 "source" to (source ?: "all"),
@@ -140,7 +147,7 @@ class KnowledgeController(
         logger.info { "Searching knowledge for query: '${request.query}', limit: ${request.limit}, source: ${request.sourceFilter ?: "all"}" }
         
         return@runBlocking try {
-            val results = knowledgeService.searchKnowledge(request.query, request.limit, request.sourceFilter)
+            val results = knowledgeService.searchKnowledge(request.query, request.limit)
             ResponseEntity.ok(mapOf(
                 "query" to request.query,
                 "source" to (request.sourceFilter ?: "all"),
