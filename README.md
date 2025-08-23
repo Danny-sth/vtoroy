@@ -1,4 +1,4 @@
-# Jarvis - Personal AI Assistant v0.6.0
+# Vtoroy - Personal AI Assistant v0.6.0
 
 Персональный AI-ассистент с полной интеграцией Obsidian, ReAct reasoning системой и автономным принятием решений через Claude AI.
 
@@ -177,7 +177,7 @@ docker-compose -f docker-compose.local.yml up -d postgres
 - 📚 Панель управления базой знаний с корректными датами
 - 📋 Вкладка системных логов в реальном времени
 - ⌨️ Отправка по Ctrl+Enter
-- 🌙 Темная тема в стиле Jarvis
+- 🌙 Темная тема в стиле Vtoroy
 - ✅ Исправленное переключение вкладок без наложения
 
 ### 6. Проверка работоспособности
@@ -214,7 +214,7 @@ curl -X POST http://localhost:8080/api/chat \
 # Запрос к базе знаний
 curl -X POST http://localhost:8080/api/chat \
   -H "Content-Type: application/json" \
-  -d '{"query": "Расскажи о проекте Jarvis", "sessionId": "user-123"}'
+  -d '{"query": "Расскажи о проекте Vtoroy", "sessionId": "user-123"}'
 ```
 
 ### Синхронизация Obsidian Vault
@@ -264,7 +264,7 @@ jarvis/
 │   │       └── contract/         # 🎯 Classification Contracts
 │   │           └── MemoryClassifier.kt # ML classification interface
 │   ├── service/                   # 🧠 Application Services
-│   │   ├── JarvisService.kt      # Main orchestration service
+│   │   ├── VtoroyService.kt      # Main orchestration service
 │   │   ├── KnowledgeService.kt   # Multi-agent coordinator
 │   │   ├── LoggingService.kt     # Real-time logging service
 │   │   └── knowledge/            # 📂 Knowledge Sources
@@ -281,7 +281,7 @@ jarvis/
 │   └── config/                   # ⚙️ Spring Configuration
 ├── src/main/resources/
 │   ├── static/                   # 🌐 Web UI (Tabbed Interface)
-│   │   ├── css/style.css        # Enhanced Jarvis-themed styles
+│   │   ├── css/style.css        # Enhanced Vtoroy-themed styles
 │   │   ├── js/app.js            # Dynamic UI with version loading
 │   │   └── index.html           # Multi-tab interface (Chat/Knowledge/Logs)
 │   ├── db/migration/            # 📊 Flyway Database Migrations
@@ -332,7 +332,7 @@ tags: [daily, work]
 
 # Заметка дня
 
-Сегодня работал над проектом [[Projects/Jarvis]].
+Сегодня работал над проектом [[Projects/Vtoroy]].
 Использовал #kotlin и #springboot.
 ```
 
@@ -407,10 +407,10 @@ Actuator endpoints доступны на:
 ### Текущий статус тестов
 
 - **Всего тестов:** 46/46 (100% проходят)
-- **Unit тесты:** KnowledgeServiceTest (9), JarvisServiceTest (6)
+- **Unit тесты:** KnowledgeServiceTest (9), VtoroyServiceTest (6)
 - **Controller тесты:** ChatControllerTest (8), KnowledgeControllerTest (12)  
-- **Integration тесты:** JarvisApplicationIntegrationTest (10)
-- **Application тест:** JarvisApplicationTests (1)
+- **Integration тесты:** VtoroyApplicationIntegrationTest (10)
+- **Application тест:** VtoroyApplicationTests (1)
 - **Test Coverage:** 80% инструкций, 57% веток
 
 ## Текущие ограничения

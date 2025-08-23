@@ -11,9 +11,9 @@ spring:
         period: 0s
       
   datasource:
-    url: jdbc:postgresql://localhost:5432/jarvis
-    username: jarvis
-    password: jarvis_local_password
+    url: jdbc:postgresql://localhost:5432/vtoroy
+    username: vtoroy
+    password: vtoroy_local_password
     driver-class-name: org.postgresql.Driver
     
   jpa:
@@ -27,13 +27,13 @@ spring:
         
   flyway:
     enabled: true
-    url: jdbc:postgresql://localhost:5432/jarvis
-    user: jarvis
-    password: jarvis_local_password
+    url: jdbc:postgresql://localhost:5432/vtoroy
+    user: vtoroy
+    password: vtoroy_local_password
     baseline-on-migrate: true
     baseline-version: 0
 
-jarvis:
+vtoroy:
   obsidian:
     vault-path: /home/danny/obsidian-vault
   chat:
@@ -43,6 +43,6 @@ jarvis:
 
 logging:
   level:
-    com.jarvis: DEBUG
+    com.vtoroy: DEBUG
     org.springframework.ai: DEBUG
     org.flywaydb: INFO

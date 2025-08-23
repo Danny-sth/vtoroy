@@ -1,11 +1,11 @@
 spring:
   application:
-    name: jarvis
+    name: vtoroy
     
   datasource:
-    url: jdbc:postgresql://localhost:5432/jarvis
-    username: jarvis
-    password: jarvis_password
+    url: jdbc:postgresql://localhost:5432/vtoroy
+    username: vtoroy
+    password: vtoroy_password
     driver-class-name: org.postgresql.Driver
     
   jpa:
@@ -46,7 +46,7 @@ spring:
           model-uri: classpath:/models/all-MiniLM-L6-v2.onnx
           
 # Application configuration
-jarvis:
+vtoroy:
   obsidian:
     vault-path: ${OBSIDIAN_VAULT_PATH:./obsidian-vault}
     watch-enabled: false # For MVP

@@ -1,12 +1,12 @@
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: jarvis-postgres-prod
+    container_name: vtoroy-postgres-prod
     restart: unless-stopped
     environment:
-      POSTGRES_DB: jarvis
-      POSTGRES_USER: jarvis
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-jarvis_production_password_2025}
+      POSTGRES_DB: vtoroy
+      POSTGRES_USER: vtoroy
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-vtoroy_production_password_2025}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "127.0.0.1:5432:5432"  # Bind only to localhost
@@ -14,23 +14,23 @@ services:
       - postgres_data_prod:/var/lib/postgresql/data
       - ../backups:/backups  # For database backups
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U jarvis"]
+      test: ["CMD-SHELL", "pg_isready -U vtoroy"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
     networks:
-      - jarvis-network
+      - vtoroy-network
 
-  jarvis-app:
+  vtoroy-app:
     build: ..
-    container_name: jarvis-app-prod
+    container_name: vtoroy-app-prod
     restart: unless-stopped
     environment:
       # Database
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/jarvis
-      SPRING_DATASOURCE_USERNAME: jarvis
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-jarvis_production_password_2025}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/vtoroy
+      SPRING_DATASOURCE_USERNAME: vtoroy
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-vtoroy_production_password_2025}
       
       # AI Configuration
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
@@ -43,7 +43,7 @@ services:
       
       # Logging
       LOGGING_LEVEL_ROOT: INFO
-      LOGGING_LEVEL_COM_JARVIS: DEBUG
+      LOGGING_LEVEL_COM_VTOROY: DEBUG
       
     ports:
       - "8080:8080"
@@ -54,7 +54,7 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - jarvis-network
+      - vtoroy-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
@@ -68,5 +68,5 @@ volumes:
     driver: local
 
 networks:
-  jarvis-network:
+  vtoroy-network:
     driver: bridge

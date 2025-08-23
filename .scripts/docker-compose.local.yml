@@ -1,28 +1,28 @@
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: jarvis-postgres
+    container_name: vtoroy-postgres
     environment:
-      POSTGRES_DB: jarvis
-      POSTGRES_USER: jarvis
-      POSTGRES_PASSWORD: jarvis_local_password
+      POSTGRES_DB: vtoroy
+      POSTGRES_USER: vtoroy
+      POSTGRES_PASSWORD: vtoroy_local_password
     ports:
       - "5432:5432"
     volumes:
-      - jarvis_postgres_data:/var/lib/postgresql/data
+      - vtoroy_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U jarvis -d jarvis"]
+      test: ["CMD-SHELL", "pg_isready -U vtoroy -d vtoroy"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - jarvis-network
+      - vtoroy-network
 
-  jarvis:
+  vtoroy:
     build:
       context: ..
       dockerfile: Dockerfile
-    container_name: jarvis-app
+    container_name: vtoroy-app
     ports:
       - "8080:8080"
     environment:
@@ -30,9 +30,9 @@ services:
       SPRING_PROFILES_ACTIVE: docker
       
       # Database configuration
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/jarvis
-      SPRING_DATASOURCE_USERNAME: jarvis
-      SPRING_DATASOURCE_PASSWORD: jarvis_local_password
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/vtoroy
+      SPRING_DATASOURCE_USERNAME: vtoroy
+      SPRING_DATASOURCE_PASSWORD: vtoroy_local_password
       
       # Anthropic API (replace with your key or leave empty for mock)
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-mock-api-key}
@@ -45,7 +45,7 @@ services:
       
       # Logging
       LOGGING_LEVEL_ROOT: INFO
-      LOGGING_LEVEL_COM_JARVIS: DEBUG
+      LOGGING_LEVEL_COM_VTOROY: DEBUG
       LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_AI: DEBUG
       LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB_CLIENT: DEBUG
       
@@ -58,7 +58,7 @@ services:
       # Mount ONNX model
       - ../src/main/resources/models:/app/models:ro
     networks:
-      - jarvis-network
+      - vtoroy-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
@@ -67,9 +67,9 @@ services:
       start_period: 60s
 
 networks:
-  jarvis-network:
+  vtoroy-network:
     driver: bridge
 
 volumes:
-  jarvis_postgres_data:
+  vtoroy_postgres_data:
     driver: local

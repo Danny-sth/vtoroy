@@ -11,7 +11,7 @@ This release represents a complete architectural transformation to Claude Code p
 #### 🚀 New Claude Code Features
 - **SubAgent Architecture**: Implemented simple, focused agents following Claude Code principles
 - **AgentDispatcher**: AI-powered agent selection without hardcoded routing
-- **JarvisMainAgent**: Central orchestrator that delegates to specialized SubAgents
+- **VtoroyMainAgent**: Central orchestrator that delegates to specialized SubAgents
 - **ObsidianAgent**: Specialized SubAgent for Obsidian vault operations
 - **Context Awareness**: Full chat history passing for conversation continuity
 - **SSE Reasoning Display**: Real-time AI reasoning via Server-Sent Events

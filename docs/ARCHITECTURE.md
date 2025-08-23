@@ -1,8 +1,8 @@
-# Jarvis AI Assistant - Architecture Documentation
+# Vtoroy AI Assistant - Architecture Documentation
 
 ## Overview
 
-Jarvis is a production-ready personal AI assistant implementing **Claude Code SubAgent architecture** with clean separation of concerns and advanced AI capabilities. The system demonstrates modern AI application patterns with real-time reasoning, vector search, and comprehensive testing.
+Vtoroy is a production-ready personal AI assistant implementing **Claude Code SubAgent architecture** with clean separation of concerns and advanced AI capabilities. The system demonstrates modern AI application patterns with real-time reasoning, vector search, and comprehensive testing.
 
 **Current Version**: 0.6.0 (Latest Release - 2025-08-23)  
 **Architecture**: Clean Architecture + Domain-Driven Design  
@@ -35,7 +35,7 @@ Jarvis is a production-ready personal AI assistant implementing **Claude Code Su
 The system follows **Claude Code principles** with AI-powered orchestration:
 
 ```
-JarvisMainAgent (Orchestrator)
+VtoroyMainAgent (Orchestrator)
 ├── AgentDispatcher (AI Selection)
 │   ├── Availability Check
 │   ├── Agent Description Analysis
@@ -71,9 +71,9 @@ interface SubAgent {
 - ✅ **Context Awareness** - Maintains conversation history
 - ✅ **Graceful Degradation** - Fallback mechanisms for failures
 
-### 2. JarvisMainAgent (Central Orchestrator)
+### 2. VtoroyMainAgent (Central Orchestrator)
 
-**Location**: `src/main/kotlin/com/jarvis/agent/JarvisMainAgent.kt`
+**Location**: `src/main/kotlin/com/jarvis/agent/VtoroyMainAgent.kt`
 
 **Responsibilities**:
 - **AI-based routing** - `knowledge_search` vs `dialogue` determination
@@ -289,9 +289,9 @@ User Input (Web UI)
         ↓
 ChatController.processChat()
         ↓
-JarvisService.chat()
+VtoroyService.chat()
         ↓
-JarvisMainAgent.processQuery()
+VtoroyMainAgent.processQuery()
         ↓
 ┌─────────────────┐         ┌──────────────────┐
 │ AgentDispatcher │ ──AI──► │ SubAgent         │
@@ -348,10 +348,10 @@ src/test/kotlin/
 ├── controller/                     # REST API Testing
 │   └── ChatControllerTest.kt      # Endpoint behavior
 ├── service/                        # Business Logic Testing  
-│   ├── JarvisServiceTest.kt       # Chat orchestration
+│   ├── VtoroyServiceTest.kt       # Chat orchestration
 │   └── knowledge/                  # Vault management
 ├── integration/                    # Full System Testing
-│   └── JarvisApplicationIntegrationTest.kt
+│   └── VtoroyApplicationIntegrationTest.kt
 └── config/                         # Test Configuration
     └── TestConfiguration.kt       # Mocked dependencies
 ```

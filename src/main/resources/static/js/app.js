@@ -1,5 +1,5 @@
-// Jarvis AI Assistant - Frontend Application
-class JarvisApp {
+// Vtoroy AI Assistant - Frontend Application
+class VtoroyApp {
     constructor() {
         this.sessionId = this.generateSessionId();
         this.isOnline = false;
@@ -258,7 +258,7 @@ class JarvisApp {
         console.log('Thinking event:', data);
         
         if (data.type === 'connected') {
-            console.log('Connected to Jarvis thinking stream');
+            console.log('Connected to Vtoroy thinking stream');
             return;
         }
         
@@ -300,7 +300,7 @@ class JarvisApp {
         messageContent.className = 'message-content';
         messageContent.innerHTML = `
             <div class="thinking-header">
-                <span class="thinking-title">🧠 Джарвис думает...</span>
+                <span class="thinking-title">🧠 Второй думает...</span>
             </div>
             <div class="thinking-steps"></div>
         `;
@@ -324,7 +324,7 @@ class JarvisApp {
         }
     }
 
-    // Send message to Jarvis
+    // Send message to Vtoroy
     async sendMessage() {
         const message = this.messageInput.value.trim();
         if (!message || this.isLoading || !this.isOnline) return;
@@ -930,7 +930,7 @@ class JarvisApp {
             <div class="message-content">
                 <div class="message-text">
                     <div class="thinking-header">
-                        <div class="thinking-title">🧠 Мысли Джарвиса</div>
+                        <div class="thinking-title">🧠 Мысли Второйа</div>
                     </div>
                     <div class="thinking-steps"></div>
                 </div>
@@ -963,14 +963,14 @@ class JarvisApp {
 
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    window.jarvisApp = new JarvisApp();
+    window.vtoroyApp = new VtoroyApp();
     
     // Add keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         // Ctrl+K to show knowledge panel
         if (e.ctrlKey && e.key === 'k') {
             e.preventDefault();
-            window.jarvisApp.showKnowledgePanel();
+            window.vtoroyApp.showKnowledgePanel();
         }
         
         // Escape to close knowledge panel

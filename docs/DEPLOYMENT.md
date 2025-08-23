@@ -1,4 +1,4 @@
-# Jarvis AI Assistant - Production Deployment Guide
+# Vtoroy AI Assistant - Production Deployment Guide
 
 > **Version**: 0.6.0 (Latest Release - 2025-08-23)  
 > **Architecture**: Claude Code SubAgent Pattern  
@@ -69,7 +69,7 @@ curl -X POST http://your-server:8080/api/chat \
 **Expected Response:**
 ```json
 {
-  "response": "✅ Hello! Your Jarvis system is running with complete Obsidian integration.",
+  "response": "✅ Hello! Your Vtoroy system is running with complete Obsidian integration.",
   "sessionId": "deployment-test",
   "timestamp": [2025, 8, 23, 16, 30, 45, 123456789],
   "metadata": {
@@ -724,4 +724,4 @@ EOF
 chmod +x /opt/jarvis/analyze-logs.sh
 ```
 
-This deployment guide provides comprehensive instructions for deploying and maintaining Jarvis v0.6.0 in production environments with the complete Claude Code SubAgent architecture implementation.
+This deployment guide provides comprehensive instructions for deploying and maintaining Vtoroy v0.6.0 in production environments with the complete Claude Code SubAgent architecture implementation.

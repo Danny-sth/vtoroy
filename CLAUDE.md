@@ -4,11 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Jarvis is a production-ready personal AI assistant built with **Clean Architecture** principles and implementing the **Claude Code SubAgent pattern**. The system features autonomous decision-making, real-time reasoning display, and complete Obsidian vault integration.
+Vtoroy ("Второй") is a digital copy assistant built with **Clean Architecture** principles and implementing the **Claude Code SubAgent pattern**. The system creates a digital alter-ego that thinks and responds like the user, with autonomous decision-making, real-time reasoning display, and complete Obsidian vault integration.
 
 **Architecture**: Spring Boot 3.5.4 + Kotlin 1.9.25 + PostgreSQL 16 + pgvector  
 **Version**: 0.6.0 (Latest Release - 2025-08-23)  
-**Tests**: 63 test methods with 100% pass rate and 80% code coverage
+**Tests**: 59 test methods with 100% pass rate and 80% code coverage  
+**Concept**: Digital copy that mimics user's thinking patterns and communication style
 
 ## 🚀 Essential Commands
 
@@ -60,7 +61,7 @@ docker-compose -f .scripts/docker-compose.local.yml up -d postgres
 
 ### Core Principle: SubAgent Pattern with AI-Powered Orchestration
 
-**JarvisMainAgent** - Central orchestrator following Claude Code principles:
+**VtoroyMainAgent** - Central orchestrator following Claude Code principles:
 - ✅ **AI-based routing** - No hardcoded keywords, pure LLM decisions
 - ✅ **Simple delegation** - Clean handoff to specialized SubAgents
 - ✅ **Context-aware** - Maintains 10-message conversation history
@@ -114,11 +115,11 @@ jarvis/
 │   │   ├── contract/             # 📋 Agent interfaces
 │   │   │   ├── SubAgent.kt       # Core SubAgent interface
 │   │   │   └── AgentSelection.kt  # Selection result wrapper
-│   │   ├── JarvisMainAgent.kt    # Central orchestrator 
+│   │   ├── VtoroyMainAgent.kt    # Central orchestrator 
 │   │   ├── AgentDispatcher.kt    # AI-powered agent selection
 │   │   └── ObsidianAgent.kt      # Obsidian vault specialist
 │   ├── service/                  # 💼 Business Logic Layer
-│   │   ├── JarvisService.kt      # Main chat orchestration
+│   │   ├── VtoroyService.kt      # Main chat orchestration
 │   │   ├── KnowledgeService.kt   # Vector search management
 │   │   └── knowledge/           # Knowledge source implementations
 │   │       ├── contract/        # Knowledge source interfaces
@@ -138,7 +139,7 @@ jarvis/
 ├── src/main/resources/
 │   ├── static/                  # 🌐 Web UI (embedded in JAR)
 │   │   ├── index.html           # Main application interface
-│   │   ├── css/style.css        # Jarvis-themed dark styling
+│   │   ├── css/style.css        # Vtoroy-themed dark styling
 │   │   └── js/app.js           # Frontend logic with SSE
 │   └── db/migration/           # 🗃️ Flyway database migrations
 └── src/test/kotlin/            # 🧪 Test Suite (63 tests, 100% pass)
@@ -206,7 +207,7 @@ jarvis:
 ### Key Test Coverage
 - **AgentDispatcherTest**: AI-based agent selection logic
 - **ObsidianAgentTest**: Vault operations and availability
-- **JarvisApplicationIntegrationTest**: Full system behavior
+- **VtoroyApplicationIntegrationTest**: Full system behavior
 - **HybridMemoryClassifierTest**: ML classification accuracy
 
 ### Running Tests
@@ -238,7 +239,7 @@ jarvis:
 ## 🌐 Web Interface
 
 The complete web UI is embedded as static files in the Spring Boot JAR:
-- **Dark theme** - Professional Jarvis-inspired design
+- **Dark theme** - Professional Vtoroy-inspired design
 - **Real-time chat** - SSE-powered reasoning display
 - **Live system logs** - Streaming log viewer
 - **Knowledge management** - Sync controls and status
@@ -346,4 +347,4 @@ The system has evolved from basic agent architecture (v0.3.0) through ReAct reas
 
 ---
 
-This documentation reflects the current production-ready state of Jarvis v0.6.0 with complete Claude Code architecture implementation, comprehensive testing, and advanced AI capabilities.
+This documentation reflects the current production-ready state of Vtoroy v0.6.0 with complete Claude Code architecture implementation, comprehensive testing, and advanced AI capabilities.

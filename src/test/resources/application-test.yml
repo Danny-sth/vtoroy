@@ -1,10 +1,10 @@
 spring:
   application:
-    name: jarvis-test
+    name: vtoroy-test
     
   # Test database will be configured by TestContainers
   datasource:
-    url: jdbc:postgresql://localhost:5432/jarvis_test
+    url: jdbc:postgresql://localhost:5432/vtoroy_test
     driver-class-name: org.postgresql.Driver
     username: test
     password: test
@@ -33,9 +33,9 @@ spring:
           temperature: 0.1
           
 # Test configuration
-jarvis:
+vtoroy:
   obsidian:
-    vault-path: ${java.io.tmpdir}/jarvis-test-vault
+    vault-path: ${java.io.tmpdir}/vtoroy-test-vault
     watch-enabled: false
     sync-on-startup: false
     
@@ -58,7 +58,7 @@ management:
         
 logging:
   level:
-    com.jarvis: DEBUG
+    com.vtoroy: DEBUG
     org.springframework.ai: WARN
     org.flywaydb: WARN
     org.testcontainers: WARN
