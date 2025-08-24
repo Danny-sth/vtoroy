@@ -1,5 +1,5 @@
 -- V1: Complete database setup
--- Author: Jarvis System
+-- Author: Vtoroy System
 -- Date: 2025-08-20
 
 -- Enable pgvector extension

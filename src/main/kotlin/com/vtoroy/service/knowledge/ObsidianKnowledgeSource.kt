@@ -25,7 +25,7 @@ import kotlin.io.path.pathString
  */
 @Component
 class ObsidianKnowledgeSource(
-    @Value("\${jarvis.obsidian.vault-path}")
+    @Value("\${vtoroy.obsidian.vault-path}")
     private val defaultVaultPath: String,
     private val vaultManager: ObsidianVaultManager
 ) : KnowledgeSource {

@@ -82,6 +82,6 @@ management:
         
 logging:
   level:
-    com.jarvis: DEBUG
+    com.vtoroy: DEBUG
     org.springframework.ai: DEBUG
     org.flywaydb: INFO

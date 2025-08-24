@@ -96,13 +96,13 @@ class LoggingService {
                 LogEntry(
                     timestamp = LocalDateTime.now().minusSeconds(30).format(DateTimeFormatter.ofPattern("HH:mm:ss")),
                     level = "INFO",
-                    logger = "JarvisApplication",
-                    message = "Starting Jarvis AI Assistant..."
+                    logger = "VtoroyApplication",
+                    message = "Starting Vtoroy Digital Copy..."
                 ),
                 LogEntry(
                     timestamp = LocalDateTime.now().minusSeconds(25).format(DateTimeFormatter.ofPattern("HH:mm:ss")),
                     level = "INFO", 
-                    logger = "JarvisApplication",
+                    logger = "VtoroyApplication",
                     message = "Spring Boot application started successfully"
                 ),
                 LogEntry(

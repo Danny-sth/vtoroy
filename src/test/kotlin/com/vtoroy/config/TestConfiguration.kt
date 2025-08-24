@@ -30,7 +30,7 @@ class TestConfiguration {
         val mockResponse = ChatResponse(
             listOf(
                 Generation(
-                    "Hello! This is a mock response from Jarvis for testing purposes."
+                    "Hello! This is a mock response from Vtoroy for testing purposes."
                 )
             )
         )

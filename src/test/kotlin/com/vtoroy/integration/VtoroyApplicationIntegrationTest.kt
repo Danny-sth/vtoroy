@@ -47,7 +47,7 @@ class VtoroyApplicationIntegrationTest {
             org.testcontainers.utility.DockerImageName.parse("pgvector/pgvector:pg16")
                 .asCompatibleSubstituteFor("postgres")
         )
-            .withDatabaseName("jarvis_test")
+            .withDatabaseName("vtoroy_test")
             .withUsername("test")
             .withPassword("test")
             .withCommand("postgres", "-c", "shared_preload_libraries=vector")
@@ -144,8 +144,8 @@ class VtoroyApplicationIntegrationTest {
     // Test: Knowledge sync with test vault
     @Test
     fun `knowledge sync should process markdown files and save to database`() {
-        // Given - Create test vault directory (from application-test.yml: ${java.io.tmpdir}/jarvis-test-vault)
-        val testVaultPath = Paths.get(System.getProperty("java.io.tmpdir"), "jarvis-test-vault")
+        // Given - Create test vault directory (from application-test.yml: ${java.io.tmpdir}/vtoroy-test-vault)
+        val testVaultPath = Paths.get(System.getProperty("java.io.tmpdir"), "vtoroy-test-vault")
         Files.createDirectories(testVaultPath)
         
         val file1 = testVaultPath.resolve("file1.md")

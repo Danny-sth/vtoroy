@@ -44,7 +44,7 @@ class VtoroyService(
         logger.debug { "Loaded ${chatHistory.size} messages from history" }
         
         try {
-            // Обрабатываем запрос через JarvisMainAgent
+            // Обрабатываем запрос через VtoroyMainAgent
             val responseContent = vtoroyMainAgent.processQuery(query, sessionId, chatHistory)
             
             // Save assistant message
@@ -60,7 +60,7 @@ class VtoroyService(
                 metadata = mapOf("history_size" to chatHistory.size)
             )
         } catch (e: Exception) {
-            logger.error(e) { "Error in JarvisMainAgent: ${e.message}" }
+            logger.error(e) { "Error in VtoroyMainAgent: ${e.message}" }
             throw e
         }
     }

@@ -35,7 +35,7 @@ class SystemController(
                 SseEmitter.event()
                     .name("connected")
                     .data(mapOf(
-                        "message" to "Подключено к логам Jarvis",
+                        "message" to "Подключено к логам Vtoroy",
                         "timestamp" to LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
                         "level" to "INFO"
                     ))
@@ -144,14 +144,14 @@ class SystemController(
             ResponseEntity.ok(mapOf(
                 "version" to version,
                 "buildTime" to (buildTime?.toString() ?: "unknown"),
-                "name" to (buildProperties?.name ?: "Jarvis")
+                "name" to (buildProperties?.name ?: "Vtoroy")
             ))
         } catch (e: Exception) {
             logger.error(e) { "Error getting version info" }
             ResponseEntity.ok(mapOf(
                 "version" to "v0.3.0", // fallback
                 "buildTime" to "unknown",
-                "name" to "Jarvis"
+                "name" to "Vtoroy"
             ))
         }
     }

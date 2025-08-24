@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Jarvis - Full Clean Rebuild Script
+# Vtoroy - Full Clean Rebuild Script
 # Полная очистка Docker кеша и пересборка
 
 set -e
@@ -44,5 +44,5 @@ for i in {1..30}; do
 done
 
 echo ""
-echo "🎉 Jarvis is ready after full rebuild!"
+echo "🎉 Vtoroy is ready after full rebuild!"
 echo "   Web UI: http://localhost:8080"

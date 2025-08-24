@@ -1,15 +1,15 @@
 #!/bin/bash
 set -e
 
-# Jarvis Deployment Script
+# Vtoroy Deployment Script
 # Usage: ./deploy.sh [server_ip]
 
 SERVER_IP="${1:-90.156.230.18}"
 SERVER_USER="root"
-SERVER_PATH="/opt/jarvis"
+SERVER_PATH="/opt/vtoroy"
 LOCAL_PATH="$(pwd)"
 
-echo "🚀 Deploying Jarvis to ${SERVER_IP}..."
+echo "🚀 Deploying Vtoroy to ${SERVER_IP}..."
 
 # Colors for output
 RED='\033[0;31m'
@@ -57,7 +57,7 @@ fi
 
 # Create deployment package
 print_status "Creating deployment package..."
-DEPLOY_ARCHIVE="jarvis-deploy-$(date +%Y%m%d-%H%M%S).tar.gz"
+DEPLOY_ARCHIVE="vtoroy-deploy-$(date +%Y%m%d-%H%M%S).tar.gz"
 
 tar -czf "$DEPLOY_ARCHIVE" \
     --exclude='.git' \
@@ -126,7 +126,7 @@ ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} << EOF
     
     # Set environment variables
     export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}"
-    export DB_PASSWORD="jarvis_production_password_2025_$(date +%s)"
+    export DB_PASSWORD="vtoroy_production_password_2025_$(date +%s)"
     
     # Save environment to .env file
     cat > .env << EOL
@@ -146,7 +146,7 @@ EOL
     echo "Checking application health..."
     for i in {1..10}; do
         if curl -f http://localhost:8080/actuator/health &>/dev/null; then
-            echo "✅ Jarvis is healthy and running!"
+            echo "✅ Vtoroy is healthy and running!"
             break
         fi
         echo "Waiting for application to start... (\$i/10)"
@@ -155,12 +155,12 @@ EOL
     
     echo ""
     echo "🎉 Deployment completed successfully!"
-    echo "🌐 Jarvis is now running at: http://${SERVER_IP}:8080"
+    echo "🌐 Vtoroy is now running at: http://${SERVER_IP}:8080"
     echo "📊 Health check: http://${SERVER_IP}:8080/actuator/health"
     echo ""
     echo "Useful commands:"
-    echo "  docker-compose -f docker-compose.prod.yml logs -f jarvis-app"
-    echo "  docker-compose -f docker-compose.prod.yml restart jarvis-app"
+    echo "  docker-compose -f docker-compose.prod.yml logs -f vtoroy-app"
+    echo "  docker-compose -f docker-compose.prod.yml restart vtoroy-app"
     echo "  docker-compose -f docker-compose.prod.yml down"
 EOF
 
@@ -175,7 +175,7 @@ print_status "Testing deployment..."
 sleep 5
 
 if curl -f "http://${SERVER_IP}:8080/actuator/health" &>/dev/null; then
-    print_status "✅ Deployment test passed! Jarvis is responding."
+    print_status "✅ Deployment test passed! Vtoroy is responding."
 else
     print_warning "⚠️ Deployment test failed. Check server logs."
 fi

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Jarvis - Rebuild and Restart Script
+# Vtoroy - Rebuild and Restart Script
 # Быстрая пересборка и перезапуск контейнеров
 # 
 # Этот скрипт:
@@ -21,7 +21,7 @@ else
     echo "⚠️  Warning: .env file not found, using system environment variables"
 fi
 
-echo "🔄 Rebuilding Jarvis containers..."
+echo "🔄 Rebuilding Vtoroy containers..."
 
 # Остановка и удаление контейнеров
 echo "⏹️  Stopping containers..."
@@ -29,7 +29,7 @@ docker-compose -f docker-compose.local.yml down
 
 # Удаление только образа приложения (сохраняем базовые образы)
 echo "🗑️  Removing application image..."
-docker image rm scripts-jarvis 2>/dev/null || true
+docker image rm scripts-vtoroy 2>/dev/null || true
 
 # Пересборка и запуск
 echo "🔨 Building and starting containers..."
@@ -60,12 +60,12 @@ done
 
 # Показать логи последних 10 строк
 echo "📋 Recent logs:"
-docker-compose -f docker-compose.local.yml logs --tail=10 jarvis
+docker-compose -f docker-compose.local.yml logs --tail=10 vtoroy
 
 echo ""
-echo "🎉 Jarvis is ready!"
+echo "🎉 Vtoroy is ready!"
 echo "   Web UI: http://localhost:8080"
 echo "   API: http://localhost:8080/api/*"
 echo "   Health: http://localhost:8080/actuator/health"
 echo ""
-echo "Use 'docker-compose -f docker-compose.local.yml logs -f jarvis' to follow logs"
+echo "Use 'docker-compose -f docker-compose.local.yml logs -f vtoroy' to follow logs"
