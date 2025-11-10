@@ -1,118 +1,65 @@
 package com.vtoroy.controller
 
+import com.vtoroy.service.ThinkingService
 import mu.KotlinLogging
 import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * SSE контроллер для real-time отображения мыслей Второго
+ * Теперь делегирует работу ThinkingService для лучшей тестируемости
  */
 @RestController
 @RequestMapping("/api/thinking")
 @CrossOrigin(origins = ["*"])
-class ThinkingController {
-    
+class ThinkingController(
+    private val thinkingService: ThinkingService
+) {
+
     private val logger = KotlinLogging.logger {}
-    
-    companion object {
-        // Глобальное хранилище SSE соединений по sessionId
-        private val emitters = ConcurrentHashMap<String, SseEmitter>()
-        
-        /**
-         * Отправляет мысль всем подключенным клиентам для данной сессии
-         */
-        fun sendThought(sessionId: String, message: String, type: String = "thinking") {
-            val emitter = emitters[sessionId]
-            if (emitter != null) {
-                try {
-                    val data = mapOf(
-                        "type" to type,
-                        "message" to message,
-                        "timestamp" to System.currentTimeMillis()
-                    )
-                    emitter.send(SseEmitter.event().data(data))
-                } catch (e: Exception) {
-                    // Соединение разорвано, убираем эмиттер
-                    emitters.remove(sessionId)
-                }
-            }
-        }
-        
-        /**
-         * Завершает поток мыслей для сессии
-         */
-        fun finishThinking(sessionId: String, finalMessage: String) {
-            val emitter = emitters[sessionId]
-            if (emitter != null) {
-                try {
-                    val data = mapOf(
-                        "type" to "complete",
-                        "message" to finalMessage,
-                        "timestamp" to System.currentTimeMillis()
-                    )
-                    emitter.send(SseEmitter.event().data(data))
-                    emitter.complete()
-                } catch (e: Exception) {
-                    // Игнорируем ошибки при завершении
-                } finally {
-                    emitters.remove(sessionId)
-                }
-            }
-        }
-    }
-    
+
     /**
      * Подключение к потоку мыслей для конкретной сессии
      */
     @GetMapping("/stream/{sessionId}", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun streamThoughts(@PathVariable sessionId: String): SseEmitter {
         logger.info { "Новое SSE подключение для сессии: $sessionId" }
-        
-        val emitter = SseEmitter(300000L) // 5 минут timeout
-        
-        emitter.onCompletion {
-            logger.debug { "SSE соединение завершено для сессии: $sessionId" }
-            emitters.remove(sessionId)
-        }
-        
-        emitter.onError { throwable ->
-            logger.error(throwable) { "Ошибка SSE для сессии: $sessionId" }
-            emitters.remove(sessionId)
-        }
-        
-        emitter.onTimeout {
-            logger.warn { "SSE timeout для сессии: $sessionId" }
-            emitters.remove(sessionId)
-        }
-        
-        // Сохраняем эмиттер для данной сессии
-        emitters[sessionId] = emitter
-        
-        // Отправляем первое сообщение о подключении
-        try {
-            val data = mapOf(
-                "type" to "connected",
-                "message" to "Подключен к потоку мыслей Второго",
-                "timestamp" to System.currentTimeMillis()
-            )
-            emitter.send(SseEmitter.event().data(data))
-        } catch (e: Exception) {
-            logger.error(e) { "Ошибка при отправке начального сообщения" }
-        }
-        
-        return emitter
+        return thinkingService.createStream(sessionId)
     }
-    
+
     /**
      * Получение информации о подключениях (для отладки)
      */
     @GetMapping("/status")
     fun getConnectionsStatus(): Map<String, Any> {
-        return mapOf(
-            "activeConnections" to emitters.size,
-            "sessions" to emitters.keys.toList()
-        )
+        return thinkingService.getConnectionsStatus()
+    }
+
+    companion object {
+        /**
+         * Backward compatibility: static методы теперь делегируют ThinkingService
+         * TODO: Удалить после миграции всего кода на DI
+         */
+        private var thinkingServiceInstance: ThinkingService? = null
+
+        fun setThinkingService(service: ThinkingService) {
+            thinkingServiceInstance = service
+        }
+
+        @Deprecated("Use ThinkingService via DI instead", ReplaceWith("thinkingService.sendThought(sessionId, message, type)"))
+        fun sendThought(sessionId: String, message: String, type: String = "thinking") {
+            thinkingServiceInstance?.sendThought(sessionId, message, type)
+        }
+
+        @Deprecated("Use ThinkingService via DI instead", ReplaceWith("thinkingService.finishThinking(sessionId, finalMessage)"))
+        fun finishThinking(sessionId: String, finalMessage: String) {
+            thinkingServiceInstance?.finishThinking(sessionId, finalMessage)
+        }
+    }
+
+    init {
+        // Устанавливаем instance для backward compatibility
+        setThinkingService(thinkingService)
     }
 }

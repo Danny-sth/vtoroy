@@ -1,9 +1,10 @@
 package com.vtoroy.agent
 
 import com.vtoroy.agent.contract.SubAgent
-import com.vtoroy.controller.ThinkingController
 import com.vtoroy.entity.ChatMessage
 import com.vtoroy.service.KnowledgeService
+import com.vtoroy.service.ThinkingService
+import com.vtoroy.util.RetryUtil
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import mu.KotlinLogging
@@ -19,63 +20,67 @@ import org.springframework.stereotype.Service
  * Vtoroy Main Agent - Simple dispatcher following Claude Code principles
  * Automatically selects appropriate sub-agents for tasks
  * Handles general conversations and knowledge search when no sub-agent matches
+ *
+ * РЕФАКТОРИНГ: Теперь использует ThinkingService через DI вместо static методов
  */
 @Service
 class VtoroyMainAgent(
     private val agentDispatcher: AgentDispatcher,
     private val knowledgeService: KnowledgeService,
-    private val chatModel: AnthropicChatModel
+    private val chatModel: AnthropicChatModel,
+    private val thinkingService: ThinkingService
 ) {
-    
+
     private val logger = KotlinLogging.logger {}
-    
+
     init {
         logger.info { "VtoroyMainAgent initialized with AgentDispatcher" }
     }
     
     /**
      * Main entry point - processes user queries
+     * С retry logic и ThinkingService интеграцией
      */
     suspend fun processQuery(query: String, sessionId: String, chatHistory: List<ChatMessage>): String {
         logger.info { "Processing query: '$query' for session: $sessionId" }
-        
+
         return withContext(Dispatchers.IO) {
             try {
-                // Send initial thought
-                ThinkingController.sendThought(sessionId, "🎯 Анализирую запрос: «$query»", "start")
-                
+                // Send initial thought через ThinkingService
+                thinkingService.sendThought(sessionId, "🎯 Анализирую запрос: «$query»", "start")
+
                 // Try to find suitable sub-agent
                 val agentSelection = agentDispatcher.selectAgent(query, chatHistory)
-                
+
                 if (agentSelection != null) {
                     // Delegate to sub-agent
-                    ThinkingController.sendThought(sessionId, "🤖 Делегирую ${agentSelection.agent.name}", "delegate")
+                    thinkingService.sendThought(sessionId, "🤖 Делегирую ${agentSelection.agent.name}", "delegate")
                     val result = agentSelection.agent.handle(query, chatHistory)
-                    ThinkingController.finishThinking(sessionId, "✅ Выполнено!")
+                    thinkingService.finishThinking(sessionId, "✅ Выполнено!")
                     result
                 } else {
                     // Handle directly - check if it's knowledge search or dialogue
                     val approach = determineApproach(query, chatHistory)
-                    
+
                     when (approach) {
                         "knowledge_search" -> {
-                            ThinkingController.sendThought(sessionId, "🔍 Ищу в базе знаний...", "search")
+                            thinkingService.sendThought(sessionId, "🔍 Ищу в базе знаний...", "search")
                             val result = handleKnowledgeSearch(query, chatHistory)
-                            ThinkingController.finishThinking(sessionId, "✅ Поиск завершен!")
+                            thinkingService.finishThinking(sessionId, "✅ Поиск завершен!")
                             result
                         }
                         else -> {
-                            ThinkingController.sendThought(sessionId, "💬 Отвечаю в диалоге...", "dialogue")
+                            thinkingService.sendThought(sessionId, "💬 Отвечаю в диалоге...", "dialogue")
                             val result = handleDialogue(query, chatHistory)
-                            ThinkingController.finishThinking(sessionId, "✅ Ответ готов!")
+                            thinkingService.finishThinking(sessionId, "✅ Ответ готов!")
                             result
                         }
                     }
                 }
-                
+
             } catch (e: Exception) {
                 logger.error(e) { "Error processing query: '$query'" }
-                ThinkingController.finishThinking(sessionId, "❌ Произошла ошибка")
+                thinkingService.finishThinking(sessionId, "❌ Произошла ошибка")
                 "❌ Произошла ошибка при обработке запроса: ${e.message}"
             }
         }
@@ -83,39 +88,43 @@ class VtoroyMainAgent(
     
     /**
      * AI-based approach determination (Claude Code principles - no hardcoded keywords!)
+     * С retry logic для надежности
      */
     private suspend fun determineApproach(query: String, chatHistory: List<ChatMessage>): String {
         val systemPrompt = """
         Определи подход для ответа на запрос пользователя:
-        
-        knowledge_search - если пользователь запрашивает информацию о чем-то конкретном, 
+
+        knowledge_search - если пользователь запрашивает информацию о чем-то конкретном,
         что может быть в базе знаний (проекты, документация, заметки)
-        
-        dialogue - для обычного общения, вопросов общего характера, 
+
+        dialogue - для обычного общения, вопросов общего характера,
         просьб о помощи без конкретной информации
-        
+
         Отвечай только: knowledge_search или dialogue
         """.trimIndent()
-        
+
         val contextMessages = if (chatHistory.isNotEmpty()) {
-            "Контекст:\n" + 
+            "Контекст:\n" +
             chatHistory.takeLast(3).joinToString("\n") { "${it.role}: ${it.content}" } + "\n\n"
         } else ""
-        
+
         val userPrompt = "${contextMessages}Запрос: $query"
-        
+
         return try {
-            val prompt = Prompt(listOf(
-                SystemMessage(systemPrompt),
-                UserMessage(userPrompt)
-            ))
-            
-            val response = chatModel.call(prompt).result.output.content.trim().lowercase()
-            val approach = if (response.contains("knowledge_search")) "knowledge_search" else "dialogue"
-            
-            logger.debug { "AI determined approach for '$query': $approach (response: '$response')" }
-            approach
-            
+            // Используем retry logic для надежности
+            RetryUtil.withRetry(maxAttempts = 2) {
+                val prompt = Prompt(listOf(
+                    SystemMessage(systemPrompt),
+                    UserMessage(userPrompt)
+                ))
+
+                val response = chatModel.call(prompt).result.output.content.trim().lowercase()
+                val approach = if (response.contains("knowledge_search")) "knowledge_search" else "dialogue"
+
+                logger.debug { "AI determined approach for '$query': $approach (response: '$response')" }
+                approach
+            }
+
         } catch (e: Exception) {
             logger.error(e) { "Error in AI approach determination, defaulting to dialogue" }
             "dialogue"

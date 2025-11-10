@@ -59,7 +59,10 @@ dependencies {
 	
 	// Logging
 	implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
-	
+
+	// Rate limiting
+	implementation("com.google.guava:guava:33.0.0-jre")
+
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("io.projectreactor:reactor-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
